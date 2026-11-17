@@ -59,6 +59,7 @@ export default function PortfoliosPage() {
         jsonInit("PATCH", { name: renameTo }),
       );
       setPortfolios((list) => (list ?? []).map((p) => (p.id === renamed.id ? renamed : p)));
+      setDeleting((open) => (open?.id === renamed.id ? renamed : open));
       setRenaming(null);
     } catch (error) {
       setRenameError(message(error));
