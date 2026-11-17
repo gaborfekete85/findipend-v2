@@ -189,4 +189,4 @@ docker compose up --build
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000 (docs at `/docs`)
-- PostgreSQL: localhost:5432
+- PostgreSQL: localhost:5435
