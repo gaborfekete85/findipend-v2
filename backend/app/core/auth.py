@@ -1,4 +1,5 @@
 import functools
+import http.client
 import json
 import urllib.request
 from typing import Annotated
@@ -7,12 +8,13 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core.config import clerk_jwks_url
+from app.core.config import clerk_authorized_parties, clerk_issuer, clerk_jwks_url
 
 _bearer = HTTPBearer(auto_error=False)
 
 
 # simplest: keys are cached for the process lifetime; a Clerk key rotation needs a restart.
+# functools.cache never stores a raised exception, so a failed fetch is retried next request.
 @functools.cache
 def jwk_set(url: str) -> jwt.PyJWKSet:
     with urllib.request.urlopen(url, timeout=10) as response:
@@ -31,16 +33,43 @@ def current_user_id(
     if credentials is None:
         raise unauthorized
     token = credentials.credentials
-    url = clerk_jwks_url()  # outside the try: a missing setting is a 500, not a 401
+    # outside the try: a missing setting is a 500, not a 401
+    url = clerk_jwks_url()
+    issuer = clerk_issuer()
+    parties = clerk_authorized_parties()
     try:
         kid = jwt.get_unverified_header(token).get("kid")
-        key = jwk_set(url)[kid]
+    except jwt.PyJWTError:
+        raise unauthorized from None
+    try:
+        keys = jwk_set(url)
+    # OSError: network error or timeout; http.client.HTTPException: broken HTTP
+    # response (e.g. IncompleteRead); ValueError: not JSON;
+    # TypeError, AttributeError, PyJWTError: JSON that is not a JWKS.
+    except (
+        OSError,
+        http.client.HTTPException,
+        ValueError,
+        TypeError,
+        AttributeError,
+        jwt.PyJWTError,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not fetch Clerk signing keys; try again later",
+        ) from None
+    try:
         claims = jwt.decode(
             token,
-            key.key,
+            keys[kid].key,
             algorithms=["RS256"],
-            options={"require": ["exp", "nbf", "sub"]},
+            issuer=issuer,
+            options={"require": ["exp", "nbf", "sub", "iss"]},
         )
     except (jwt.PyJWTError, KeyError):
         raise unauthorized from None
+    if parties and claims.get("azp") not in parties:
+        raise unauthorized
+    if not claims["sub"]:
+        raise unauthorized
     return claims["sub"]

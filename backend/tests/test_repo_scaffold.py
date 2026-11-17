@@ -25,7 +25,15 @@ def _env_example() -> dict[str, str]:
 def test_env_example_lists_required_keys_with_placeholders():
     values = _env_example()
 
-    for key in ("CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY", "CLERK_JWKS_URL", "DATABASE_URL"):
+    required = (
+        "CLERK_PUBLISHABLE_KEY",
+        "CLERK_SECRET_KEY",
+        "CLERK_JWKS_URL",
+        "CLERK_ISSUER",
+        "CLERK_AUTHORIZED_PARTIES",
+        "DATABASE_URL",
+    )
+    for key in required:
         assert key in values, key
         assert values[key] != "", key
     assert values["CLERK_PUBLISHABLE_KEY"] == "pk_test_placeholder"
