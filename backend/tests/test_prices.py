@@ -58,7 +58,7 @@ def test_get_prices_returns_decimal_price_and_fetch_time():
 
 
 def test_get_prices_hits_transport_once_within_60s_and_again_after_61s():
-    transport = FakeTransport(prices={"bitcoin": {"usd": Decimal("60000")}})
+    transport = FakeTransport(prices={"bitcoin": {"usd": Decimal(60000)}})
     clock = FakeClock()
     client = CoinGecko(transport=transport, clock=clock)
 
@@ -73,7 +73,7 @@ def test_get_prices_hits_transport_once_within_60s_and_again_after_61s():
 
 
 def test_get_prices_returns_last_price_with_original_as_of_when_transport_fails():
-    transport = FakeTransport(prices={"bitcoin": {"usd": Decimal("60000")}})
+    transport = FakeTransport(prices={"bitcoin": {"usd": Decimal(60000)}})
     clock = FakeClock()
     client = CoinGecko(transport=transport, clock=clock)
     client.get_prices(["bitcoin"])
@@ -82,9 +82,7 @@ def test_get_prices_returns_last_price_with_original_as_of_when_transport_fails(
     clock.now = T0 + 120
     prices = client.get_prices(["bitcoin"])
 
-    assert prices == {
-        "bitcoin": Price(price=Decimal("60000"), as_of=datetime.fromtimestamp(T0, UTC))
-    }
+    assert prices == {"bitcoin": Price(price=Decimal(60000), as_of=datetime.fromtimestamp(T0, UTC))}
     assert len(transport.calls) == 2
 
 
@@ -97,7 +95,7 @@ def test_get_prices_returns_none_when_transport_fails_with_no_prior_fetch():
 
 
 def test_get_prices_mixes_last_known_and_none_when_transport_fails():
-    transport = FakeTransport(prices={"bitcoin": {"usd": Decimal("60000")}})
+    transport = FakeTransport(prices={"bitcoin": {"usd": Decimal(60000)}})
     clock = FakeClock()
     client = CoinGecko(transport=transport, clock=clock)
     client.get_prices(["bitcoin"])
@@ -107,7 +105,7 @@ def test_get_prices_mixes_last_known_and_none_when_transport_fails():
     prices = client.get_prices(["bitcoin", "ethereum"])
 
     assert prices == {
-        "bitcoin": Price(price=Decimal("60000"), as_of=datetime.fromtimestamp(T0, UTC)),
+        "bitcoin": Price(price=Decimal(60000), as_of=datetime.fromtimestamp(T0, UTC)),
         "ethereum": None,
     }
 
@@ -156,9 +154,7 @@ def test_assets_search_returns_bitcoin_first_among_matches(assets_api):
         pytest.param("lido staked", "staked-ether", id="name-only"),
     ],
 )
-def test_assets_search_matches_id_symbol_or_name_case_insensitively(
-    assets_api, query, expected_id
-):
+def test_assets_search_matches_id_symbol_or_name_case_insensitively(assets_api, query, expected_id):
     api, transport = assets_api
     transport.coins = [
         _coin("bitcoin", "btc", "Bitcoin"),
