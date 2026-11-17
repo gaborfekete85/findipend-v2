@@ -72,10 +72,12 @@ class CoinGecko:
             query = urllib.parse.urlencode({"ids": ",".join(stale), "vs_currencies": "usd"})
             try:
                 body = self._transport(f"{BASE_URL}/simple/price?{query}")
+                quotes = {i: Decimal(str(body[i]["usd"])) for i in stale if i in body}
+                # Infinity or NaN is not a price: treat it like a missing one.
                 fetched = {
-                    i: Price(Decimal(str(body[i]["usd"])), datetime.fromtimestamp(now, UTC))
-                    for i in stale
-                    if i in body
+                    i: Price(price, datetime.fromtimestamp(now, UTC))
+                    for i, price in quotes.items()
+                    if price.is_finite()
                 }
             # OSError: network error or timeout; http.client.HTTPException: broken HTTP
             # response; ValueError: not JSON; TypeError, KeyError, ArithmeticError
