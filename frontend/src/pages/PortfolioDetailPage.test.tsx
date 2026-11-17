@@ -165,3 +165,11 @@ test("buy ids are passed through encodeURIComponent when building paths", async 
     "DELETE /api/v1/portfolios/1/buys/9%2F..%2Fx",
   );
 });
+
+test("the history table sits in a horizontal-scroll wrapper so a long quantity cannot widen the page", async () => {
+  renderPage({ "GET /api/v1/portfolios/1/buys": [json(200, [buy(1, { quantity: "0.123456789012345678" })])] });
+
+  const table = await screen.findByRole("table", { name: "Transaction history" });
+
+  expect(table.parentElement!.classList.contains("overflow-x-auto")).toBe(true);
+});
