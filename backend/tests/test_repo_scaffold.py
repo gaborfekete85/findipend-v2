@@ -169,3 +169,54 @@ def test_db_tests_skip_when_docker_is_missing_and_skip_is_opted_in(tmp_path):
     assert result.returncode == 0, output
     summary = result.stdout.strip().splitlines()[-1]
     assert re.fullmatch(r"\d+ skipped in [\d.]+s", summary), summary
+
+
+def _compose_service_ports(service: str) -> list[str]:
+    # No YAML parser in the deps: read the service's `ports:` list from the indented block.
+    lines = (REPO_ROOT / "docker-compose.yml").read_text().splitlines()
+    start = lines.index(f"  {service}:")
+    block = []
+    for line in lines[start + 1 :]:
+        if line.strip() and not line.startswith("    "):
+            break
+        block.append(line)
+    at = [line.strip() for line in block].index("ports:")
+    ports = []
+    for line in block[at + 1 :]:
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            break
+        ports.append(stripped[2:].strip('"'))
+    return ports
+
+
+def test_docker_compose_file_publishes_postgres_on_host_port_5435():
+    assert _compose_service_ports("postgres") == ["5435:5432"]
+
+
+def test_docker_compose_config_publishes_postgres_on_host_port_5435():
+    require_docker()
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    ports = json.loads(result.stdout)["services"]["postgres"]["ports"]
+    assert [(port["published"], port["target"]) for port in ports] == [("5435", 5432)]
+
+
+def test_env_example_database_url_reaches_postgres_inside_the_compose_network():
+    assert (
+        _env_example()["DATABASE_URL"] == "postgresql://findipend:findipend@postgres:5432/findipend"
+    )
+
+
+def test_readme_lists_postgres_on_host_port_5435():
+    readme = (REPO_ROOT / "README.md").read_text()
+
+    assert "- PostgreSQL: localhost:5435" in readme.splitlines()
+    assert "localhost:5432" not in readme
