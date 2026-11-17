@@ -100,3 +100,18 @@ test("an asset whose price is unavailable shows 'price unavailable' and no unrea
   expect(solRow[3]).toBe("price unavailable (last price 2026-11-16T09:30:00Z)");
   expect(solRow[6]).toBe("");
 });
+
+test("a P&L that rounds to zero cents shows $0.00 without a sign or profit/loss style", async () => {
+  const dust = { ...btc, realized_pnl_usd: "-0.004", unrealized_pnl_usd: "0.0000001", total_pnl_usd: "0.005" };
+  renderPage({ ...summary, realized_pnl_usd: "0.004", unrealized_pnl_usd: "-0.0000001", assets: [dust] });
+
+  const [, , realized, unrealized] = await widgets();
+  expect([realized[1].textContent, realized[1].className]).toEqual(["$0.00", "block text-lg font-semibold"]);
+  expect([unrealized[1].textContent, unrealized[1].className]).toEqual(["$0.00", "block text-lg font-semibold"]);
+  const cells = (await screen.findByRole("table", { name: "Assets" })).querySelectorAll("tbody td");
+  expect([5, 6, 7].map((i) => [cells[i].textContent, cells[i].firstElementChild!.className])).toEqual([
+    ["$0.00", ""],
+    ["$0.00", ""],
+    ["+$0.01", "text-green-600"],
+  ]);
+});

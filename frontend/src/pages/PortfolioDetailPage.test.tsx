@@ -241,3 +241,11 @@ test("portfolio detail shows its summary widgets and open and closed positions i
   const widgets = within(screen.getByRole("list", { name: "Summary" })).getAllByRole("listitem").map((item) => item.textContent);
   expect(widgets).toEqual(["Total invested$32,000.00", "Cost basis$0.00", "Realized P&L$0.00", "Unrealized P&L$0.00", "Total P&L+$4,799.75"]);
 });
+
+test("the open and closed positions tables carry visible titles", async () => {
+  renderPage({ "GET /api/v1/portfolios/1/buys": [json(200, [])] });
+
+  await screen.findByRole("table", { name: "Open positions" });
+  expect(screen.getByText("Open positions")).toBeTruthy();
+  expect(screen.getByText("Closed positions")).toBeTruthy();
+});
