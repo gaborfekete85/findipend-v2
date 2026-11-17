@@ -130,3 +130,13 @@ test.each([
 
   expect(submit().disabled).toBe(!enabled);
 });
+
+test("every header and cell of the Lots table has horizontal padding so columns do not touch on a phone", async () => {
+  await open([lot(1, "0.5", "2026-01-01")]);
+
+  const table = screen.getByRole("table", { name: "Lots" });
+  const headers = [...table.querySelectorAll("th")];
+  expect(headers.map((th) => th.textContent)).toEqual(["Lot", "Bought", "Available", "Sell from lot"]);
+  expect(headers.map((th) => th.classList.contains("px-2"))).toEqual([true, true, true, true]);
+  expect([...table.querySelectorAll("td")].map((td) => td.classList.contains("px-2"))).toEqual([true, true, true, true]);
+});

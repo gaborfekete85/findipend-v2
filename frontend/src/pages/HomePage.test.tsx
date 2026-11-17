@@ -125,3 +125,15 @@ test.each([
 
   expect(screen.queryByText("Some prices unavailable — totals exclude those assets") !== null).toBe(shown);
 });
+
+test("every header and cell of the Assets table has horizontal padding so columns do not touch on a phone", async () => {
+  renderPage(summary);
+
+  const table = await screen.findByRole("table", { name: "Assets" });
+  const headers = [...table.querySelectorAll("th")];
+  expect(headers.map((th) => th.textContent)).toEqual([
+    "Asset", "Quantity", "Cost basis", "Price", "Market value", "Realized P&L", "Unrealized P&L", "Total P&L",
+  ]);
+  expect(headers.map((th) => th.classList.contains("px-2"))).toEqual(Array(8).fill(true));
+  expect([...table.querySelectorAll("td")].map((td) => td.classList.contains("px-2"))).toEqual(Array(8).fill(true));
+});

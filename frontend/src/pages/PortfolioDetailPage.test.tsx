@@ -278,3 +278,24 @@ test.each([
 
   expect(screen.queryByText("Some prices unavailable — totals exclude those assets") !== null).toBe(shown);
 });
+
+test.each(["Open positions", "Closed positions"])("every header and cell of the %s table has horizontal padding", async (name) => {
+  const position = {
+    ...{ asset_id: "bitcoin", asset_name: "Bitcoin", asset_symbol: "btc", quantity: "0.5" },
+    ...{ total_invested_usd: "30000", cost_basis_usd: "15000", average_buy_price_usd: "30000", realized_pnl_usd: "0" },
+    ...{ price_usd: "40000", price_as_of: "2026-11-17T10:00:00Z", price_unavailable: false },
+    ...{ market_value_usd: "20000", unrealized_pnl_usd: "5000", total_pnl_usd: "5000" },
+  };
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [])],
+    "GET /api/v1/portfolios/1/positions": [json(200, { open: [position], closed: [{ ...position, asset_id: "ethereum" }] })],
+  });
+
+  const table = await screen.findByRole("table", { name });
+  const headers = [...table.querySelectorAll("th")];
+  expect(headers.map((th) => th.textContent)).toEqual([
+    "Asset", "Quantity", "Cost basis", "Price", "Market value", "Realized P&L", "Unrealized P&L", "Total P&L",
+  ]);
+  expect(headers.map((th) => th.classList.contains("px-2"))).toEqual(Array(8).fill(true));
+  expect([...table.querySelectorAll("td")].map((td) => td.classList.contains("px-2"))).toEqual(Array(8).fill(true));
+});
