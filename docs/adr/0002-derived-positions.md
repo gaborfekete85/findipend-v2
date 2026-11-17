@@ -1,0 +1,3 @@
+# Positions are derived from lots and sells, never stored
+
+Lots, sells and allocations are the only persisted trade records; positions, cost basis, total invested, average buy price and realized/unrealized P&L are computed on read. Because buys and sells can be edited, deleted and back-dated, a stored positions table would need recomputation on every change and could drift from the transactions; at single-user portfolio sizes (hundreds of transactions) computing on read is cheap and always correct. A future reader seeing no `positions` table should not "add one back" as a cache without a measured performance need.
