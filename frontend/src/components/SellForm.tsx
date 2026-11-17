@@ -10,7 +10,6 @@ type Lot = Buy & { unsold: string };
 type Asset = Pick<Buy, "asset_id" | "asset_name" | "asset_symbol">;
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Request failed");
-const isAmount = (value: string) => /^\d+(\.\d+)?$/.test(value);
 
 /** Creates a sell, or edits `sell` when given. The lot table is a FIFO pre-fill the user can edit. */
 export default function SellForm({ portfolioId, sell, onSaved }: { portfolioId: string | number; sell?: Sell; onSaved: () => void }) {
@@ -55,7 +54,7 @@ export default function SellForm({ portfolioId, sell, onSaved }: { portfolioId: 
     .filter((row) => row.available !== "0");
   const prefill = fifo(open.map((row) => row.available), quantity);
   const values = open.map((row, i) => (edited ? (edited[row.lot.id] ?? "") : prefill[i]));
-  const ready = !!asset && sumsTo(values, quantity) && isAmount(total) && isAmount(shownFee);
+  const ready = !!asset && sumsTo(values, quantity);
 
   function allocate(index: number, value: string) {
     setEdited(Object.fromEntries(open.map((row, i) => [row.lot.id, i === index ? value : values[i]])));
