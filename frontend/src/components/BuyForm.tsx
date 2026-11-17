@@ -64,7 +64,7 @@ export default function BuyForm({ portfolioId, buy, onSaved }: { portfolioId: st
       ...{ asset_id: asset.id, asset_name: asset.name, asset_symbol: asset.symbol, quantity, total_usd: total },
       ...{ fee_usd: shownFee, trade_date: tradeDate, comment: comment || null },
     };
-    const path = `/api/v1/portfolios/${portfolioId}/buys${buy ? `/${buy.id}` : ""}`;
+    const path = `/api/v1/portfolios/${encodeURIComponent(portfolioId)}/buys${buy ? `/${encodeURIComponent(buy.id)}` : ""}`;
     try {
       const headers = { "Content-Type": "application/json" };
       await apiFetch(path, getToken, { method: buy ? "PUT" : "POST", headers, body: JSON.stringify(body) });

@@ -7,6 +7,7 @@ vi.mock("@clerk/react", () => ({ useAuth: () => ({ getToken: async () => "mock-t
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 function renderForm() {
@@ -68,5 +69,4 @@ test("the portfolio and buy ids are passed through encodeURIComponent in the sav
 
   await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/v1\/portfolios\/1%2F\.\.\/buys\/2%2Fx$/);
-  vi.unstubAllGlobals();
 });

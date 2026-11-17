@@ -8,13 +8,19 @@ import { usd } from "../money";
 const message = (e: unknown) => (e instanceof Error ? e.message : "Request failed");
 
 export default function PortfolioDetailPage() {
-  const { id } = useParams();
+  const { id = "" } = useParams();
+  // A non-numeric id would put attacker-chosen segments into signed-in API paths.
+  if (!/^\d+$/.test(id)) return <p role="alert" className="p-8">Portfolio not found</p>;
+  return <PortfolioDetail id={id} />;
+}
+
+function PortfolioDetail({ id }: { id: string }) {
   const { getToken } = useAuth();
   const [name, setName] = useState("");
   const [buys, setBuys] = useState<Buy[] | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<Buy | "new" | null>(null);
-  const path = `/api/v1/portfolios/${id}`;
+  const path = `/api/v1/portfolios/${encodeURIComponent(id)}`;
 
   const loadBuys = useCallback(() => {
     apiFetch<Buy[]>(`${path}/buys`, getToken).then(setBuys, (e: unknown) => setError(message(e)));
@@ -28,7 +34,7 @@ export default function PortfolioDetailPage() {
   async function remove(buy: Buy) {
     setError("");
     try {
-      await apiFetch<void>(`${path}/buys/${buy.id}`, getToken, { method: "DELETE" });
+      await apiFetch<void>(`${path}/buys/${encodeURIComponent(buy.id)}`, getToken, { method: "DELETE" });
       setBuys((list) => (list ?? []).filter((b) => b.id !== buy.id));
     } catch (e) {
       setError(message(e));
@@ -41,7 +47,7 @@ export default function PortfolioDetailPage() {
       {editing && (
         <BuyForm
           key={editing === "new" ? "new" : editing.id}
-          portfolioId={id!}
+          portfolioId={id}
           buy={editing === "new" ? undefined : editing}
           onSaved={() => (setEditing(null), loadBuys())}
         />
