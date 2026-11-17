@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,6 +58,39 @@ def test_docker_compose_config_lists_postgres_backend_and_frontend():
     assert sorted(services) == ["backend", "frontend", "postgres"]
     published = [port["published"] for port in services["frontend"]["ports"]]
     assert published == ["3000"]
+
+
+VITE_BUILD_VARS = {
+    "VITE_CLERK_PUBLISHABLE_KEY": "pk_test_from_env",
+    "VITE_API_BASE_URL": "http://api.from-env.test",
+}
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not installed")
+def test_docker_compose_passes_vite_vars_to_the_frontend_build():
+    # Vite inlines VITE_* at build time and the image has no .env (PR #19, QA Q1).
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=REPO_ROOT,
+        env={**os.environ, **VITE_BUILD_VARS},
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    build = json.loads(result.stdout)["services"]["frontend"]["build"]
+    assert build.get("args") == VITE_BUILD_VARS
+
+
+def test_frontend_dockerfile_exposes_vite_vars_to_the_build():
+    lines = [
+        line.strip() for line in (REPO_ROOT / "frontend" / "Dockerfile").read_text().splitlines()
+    ]
+    build_at = lines.index("RUN bun run build")
+
+    for name in VITE_BUILD_VARS:
+        assert f"ARG {name}" in lines[:build_at], name
 
 
 def test_frontend_lockfile_is_bun_lock_only():
