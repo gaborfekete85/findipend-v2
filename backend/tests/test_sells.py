@@ -53,11 +53,13 @@ def _lots(api, pid: int, **params) -> list[dict]:
 
 def test_open_lots_as_of_date_lists_only_earlier_lot_with_unsold(api):
     pid = _portfolio(api)
-    lot_a, _ = _lots_ab(api, pid)
+    lot_a, lot_b = _lots_ab(api, pid)
 
     lots = _lots(api, pid, asset_id="bitcoin", open="true", as_of="2026-01-15")
 
     assert [(lot["id"], lot["unsold"]) for lot in lots] == [(lot_a, "1")]
+    on_b = _lots(api, pid, asset_id="bitcoin", open="true", as_of="2026-02-01")
+    assert [lot["id"] for lot in on_b] == [lot_a, lot_b]
 
 
 def test_open_lots_filters_asset_and_hides_sold_out_lots(api):
