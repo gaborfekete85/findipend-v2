@@ -151,6 +151,7 @@ There is no positions table.
 ### Buys
 - `POST /api/v1/portfolios/{id}/buys`
 - `GET /api/v1/portfolios/{id}/buys`
+- `GET /api/v1/portfolios/{id}/buys/{buy_id}`
 - `PUT /api/v1/portfolios/{id}/buys/{buy_id}` — subject to lot edit rules
 - `DELETE /api/v1/portfolios/{id}/buys/{buy_id}` — 409 if the lot has allocations
 

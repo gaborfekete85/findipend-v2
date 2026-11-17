@@ -261,3 +261,130 @@ def test_buy_from_another_portfolio_returns_404(api, db_engine):
     assert _put(api, savings, buy["id"], _buy(quantity="5")).status_code == 404
     assert _delete(api, savings, buy["id"]).status_code == 404
     assert _buy_count(db_engine, main) == 1
+
+
+# Issue 33 AC1: PUT without trade_date, fee_usd or comment keeps the stored values
+
+
+def test_edit_without_trade_date_fee_or_comment_keeps_stored_values(api):
+    pid = _portfolio(api)
+    buy = _post(api, pid, _buy(trade_date="2026-01-01", fee_usd="5", comment="kept")).json()
+
+    response = _put(api, pid, buy["id"], {**BTC, "quantity": "2", "total_usd": "3000"})
+
+    assert response.status_code == 200
+    edited = response.json()
+    assert edited["trade_date"] == "2026-01-01"
+    assert edited["fee_usd"] == "5.00000000"
+    assert edited["comment"] == "kept"
+    assert edited["quantity"] == "2.000000000000000000"
+    assert edited["total_usd"] == "3000.00000000"
+    assert api.as_user(ALICE).get(_buys_url(pid)).json() == [edited]
+
+
+def test_edit_with_trade_date_fee_and_comment_replaces_them(api):
+    pid = _portfolio(api)
+    buy = _post(api, pid, _buy(trade_date="2026-01-01", fee_usd="5", comment="old")).json()
+
+    body = _buy(trade_date="2026-02-02", fee_usd="7", comment=None)
+    response = _put(api, pid, buy["id"], body)
+
+    assert response.status_code == 200
+    edited = response.json()
+    assert (edited["trade_date"], edited["fee_usd"], edited["comment"]) == (
+        "2026-02-02", "7.00000000", None,
+    )
+
+
+def test_edit_omitting_fee_above_new_total_returns_422(api):
+    pid = _portfolio(api)
+    buy = _post(api, pid, _buy(fee_usd="5")).json()
+
+    response = _put(api, pid, buy["id"], {**BTC, "quantity": "1", "total_usd": "4"})
+
+    assert response.status_code == 422
+    assert api.as_user(ALICE).get(_buys_url(pid)).json() == [buy]
+
+
+# Issue 33 AC2: the allocated sum is exact beyond 28 significant digits, so an edit just
+# below it is 409. The ticket's literal values have 27 decimals, beyond NUMERIC(38,18).
+
+ALLOCATED_38_DIGITS = "1234567890123456789.012345678101234561"
+
+
+@pytest.mark.parametrize(
+    ("quantity", "code"),
+    [("1234567890123456789.012345678101234560", 409), (ALLOCATED_38_DIGITS, 200)],
+)
+def test_edit_quantity_against_38_digit_allocation(api, db_engine, quantity, code):
+    pid = _portfolio(api)
+    buy = _post(api, pid, _buy(quantity="2000000000000000000")).json()
+    _sell_from(db_engine, pid, buy["id"], ALLOCATED_38_DIGITS, date(2026, 3, 10))
+
+    response = _put(api, pid, buy["id"], _buy(quantity=quantity))
+
+    assert response.status_code == code
+
+
+# Issue 33 AC3: decimal fields are JSON strings; a JSON number is 422
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{"quantity": 1.5}, {"quantity": 1}, {"total_usd": 1000}, {"fee_usd": 1.5}],
+)
+def test_post_buy_with_json_number_decimal_returns_422(api, db_engine, fields):
+    pid = _portfolio(api)
+
+    response = _post(api, pid, _buy(**fields))
+
+    assert response.status_code == 422
+    assert _buy_count(db_engine, pid) == 0
+
+
+def test_post_buy_with_string_decimal_returns_201(api):
+    pid = _portfolio(api)
+
+    response = _post(api, pid, _buy(quantity="1.5"))
+
+    assert response.status_code == 201
+    assert response.json()["quantity"] == "1.500000000000000000"
+
+
+def test_edit_buy_with_json_number_decimal_returns_422(api):
+    pid = _portfolio(api)
+    buy = _post(api, pid, _buy()).json()
+
+    assert _put(api, pid, buy["id"], _buy(quantity=2)).status_code == 422
+    assert api.as_user(ALICE).get(_buys_url(pid)).json() == [buy]
+
+
+# Issue 33 AC4: ids outside the integer range are 404, not 500
+
+TOO_BIG = 99999999999
+
+
+@pytest.mark.parametrize("portfolio_id", [TOO_BIG, 2**31, -(2**31) - 1])
+def test_get_out_of_range_portfolio_returns_404(api, portfolio_id):
+    _portfolio(api)
+
+    assert api.as_user(ALICE).get(f"/api/v1/portfolios/{portfolio_id}").status_code == 404
+    assert api.as_user(ALICE).get(_buys_url(portfolio_id)).status_code == 404
+
+
+def test_out_of_range_buy_id_returns_404(api):
+    pid = _portfolio(api)
+    url = f"{_buys_url(pid)}/{TOO_BIG}"
+
+    assert api.as_user(ALICE).get(url).status_code == 404
+    assert api.as_user(ALICE).put(url, json=_buy()).status_code == 404
+    assert api.as_user(ALICE).delete(url).status_code == 404
+
+
+def test_get_buy_returns_it_and_404_for_another_users(api):
+    pid = _portfolio(api)
+    buy = _post(api, pid, _buy()).json()
+    url = f"{_buys_url(pid)}/{buy['id']}"
+
+    assert api.as_user(ALICE).get(url).json() == buy
+    assert api.as_user(BOB).get(url).status_code == 404

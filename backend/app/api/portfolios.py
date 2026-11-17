@@ -16,8 +16,15 @@ UserId = Annotated[str, Depends(current_user_id)]
 Db = Annotated[Session, Depends(get_session)]
 
 
+def _is_db_id(value: int) -> bool:
+    """Ids are Postgres INTEGER; querying anything outside that range raises, so it is a 404."""
+    return -(2**31) <= value < 2**31
+
+
 def _owned(db: Session, user_id: str, portfolio_id: int) -> Portfolio:
     """The caller's portfolio; another user's id is a 404, never a 403."""
+    if not _is_db_id(portfolio_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Portfolio not found")
     portfolio = db.scalar(
         select(Portfolio).where(Portfolio.id == portfolio_id, Portfolio.user_id == user_id)
     )

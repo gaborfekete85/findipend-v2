@@ -1,12 +1,16 @@
 """Lot edit rules (README "Editing and deleting"): no change may uncover an allocation."""
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Allocation, Buy, Sell
+
+# NUMERIC(38,18) values have up to 38 digits, beyond Decimal's default 28-digit context;
+# 60 keeps sums of up to 10^22 of them exact.
+SUM_PRECISION = 60
 
 
 def _plain(value: Decimal) -> str:
@@ -40,12 +44,13 @@ def edit_conflict(
         return None
     if asset_id != buy.asset_id:
         return f"Cannot change the asset of a lot that {_names(draws)} draws from"
-    allocated = sum((q for _, q in draws), Decimal(0))
-    if quantity < allocated:
-        return (
-            f"Quantity {_plain(quantity)} is below the {_plain(allocated)} already "
-            f"allocated from this lot by {_names(draws)}"
-        )
+    with localcontext(prec=SUM_PRECISION):
+        allocated = sum((q for _, q in draws), Decimal(0))
+        if quantity < allocated:
+            return (
+                f"Quantity {_plain(quantity)} is below the {_plain(allocated)} already "
+                f"allocated from this lot by {_names(draws)}"
+            )
     earlier = [(sell, q) for sell, q in draws if sell.trade_date < trade_date]
     if earlier:
         return f"Trade date {trade_date.isoformat()} is after {_names(earlier)}, drawing from this lot"
