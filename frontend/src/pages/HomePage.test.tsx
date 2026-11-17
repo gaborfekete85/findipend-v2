@@ -115,3 +115,13 @@ test("a P&L that rounds to zero cents shows $0.00 without a sign or profit/loss 
     ["+$0.01", "text-green-600"],
   ]);
 });
+
+test.each([
+  [true, true],
+  [false, false],
+])("the overview with partial %s shows the partial-prices note: %s", async (partial, shown) => {
+  renderPage({ ...summary, partial });
+  await widgets();
+
+  expect(screen.queryByText("Some prices unavailable — totals exclude those assets") !== null).toBe(shown);
+});

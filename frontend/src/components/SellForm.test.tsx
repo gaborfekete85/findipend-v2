@@ -22,7 +22,7 @@ const input = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
 const type = (name: string, value: string) => fireEvent.change(input(name), { target: { value } });
 const submit = () => screen.getByRole("button", { name: "Save sell" }) as HTMLButtonElement;
 
-/** Serves GET .../lots with `lots` and POST .../sells with `post`; renders the form, picks Bitcoin, waits for the lots. */
+/** Serves GET .../lots with `lots` and POST .../sells with `post`; renders the form, picks Bitcoin, sets Total 100, waits for the lots. */
 async function open(lots: ReturnType<typeof lot>[], post = () => new Response("{}", { status: 201 })) {
   fetchMock.mockImplementation(async (url, init) => {
     const { pathname } = new URL(String(url));
@@ -33,6 +33,7 @@ async function open(lots: ReturnType<typeof lot>[], post = () => new Response("{
   await screen.findByRole("option", { name: "Bitcoin (BTC)" });
   fireEvent.change(input("Asset"), { target: { value: "bitcoin" } });
   type("Trade date", "2026-11-10");
+  type("Total (USD)", "100");
   await screen.findByLabelText(`Allocation from lot ${lots[0].id}`);
 }
 
@@ -93,4 +94,37 @@ test("submitting posts string quantities with allocations [{buy_id, quantity}] f
       allocations: [{ buy_id: 1, quantity: "0.5" }, { buy_id: 2, quantity: "0.3" }],
     },
   ]);
+});
+
+// Each Total runs with the derived fee and with Fee typed by hand, so the Total check cannot lean on the Fee check.
+test.each(
+  [
+    ["", false],
+    ["abc", false],
+    ["-1", false],
+    ["0", true],
+    ["100.5", true],
+  ].flatMap(([total, enabled]) => [null, "1"].map((fee) => [total, fee, enabled] as const)),
+)("with allocations summing to the quantity, Total %j (Fee %j): submit enabled is %s", async (total, fee, enabled) => {
+  await open([lot(1, "0.5", "2026-01-01"), lot(2, "1", "2026-02-01")]);
+  type("Quantity", "0.8");
+  if (fee !== null) type("Fee (USD)", fee);
+
+  type("Total (USD)", total);
+
+  expect(submit().disabled).toBe(!enabled);
+});
+
+test.each([
+  ["abc", false],
+  ["", false],
+  ["0", true],
+  ["2.5", true],
+])("with a valid Total, an edited Fee %j: submit enabled is %s", async (fee, enabled) => {
+  await open([lot(1, "0.5", "2026-01-01"), lot(2, "1", "2026-02-01")]);
+  type("Quantity", "0.8");
+
+  type("Fee (USD)", fee);
+
+  expect(submit().disabled).toBe(!enabled);
 });

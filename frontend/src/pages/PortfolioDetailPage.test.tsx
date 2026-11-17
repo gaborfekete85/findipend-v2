@@ -249,3 +249,32 @@ test("the open and closed positions tables carry visible titles", async () => {
   expect(screen.getByText("Open positions")).toBeTruthy();
   expect(screen.getByText("Closed positions")).toBeTruthy();
 });
+
+test("the expanded allocation table pads every header cell and keeps its Lot column pinned while the history scrolls", async () => {
+  const allocations = [{ id: 11, buy_id: 1, quantity: "0.5", realized_pnl_usd: "10" }];
+  const sell = buy(7, { quantity: "0.5", trade_date: "2026-11-10", allocations });
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [buy(1)])],
+    "GET /api/v1/portfolios/1/sells": [json(200, [sell])],
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Allocations of sell 7" }));
+
+  const list = screen.getByRole("table", { name: "Allocations of sell 7" });
+  const headers = [...list.querySelectorAll("th")];
+  expect(headers.map((th) => th.textContent)).toEqual(["Lot", "Quantity", "Realized P&L"]);
+  expect(headers.map((th) => th.classList.contains("px-2"))).toEqual([true, true, true]);
+  expect(["sticky", "left-0"].map((c) => list.classList.contains(c))).toEqual([true, true]);
+});
+
+test.each([
+  [true, true],
+  [false, false],
+])("a portfolio summary with partial %s shows the partial-prices note: %s", async (partial, shown) => {
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [])],
+    "GET /api/v1/portfolios/1/summary": [json(200, { ...totals, partial })],
+  });
+  await screen.findByRole("list", { name: "Summary" });
+
+  expect(screen.queryByText("Some prices unavailable — totals exclude those assets") !== null).toBe(shown);
+});
