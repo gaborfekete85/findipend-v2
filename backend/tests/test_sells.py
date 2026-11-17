@@ -393,3 +393,19 @@ def test_allocating_the_same_lot_twice_returns_422_and_keeps_unsold(api, db_engi
     assert response.status_code == 422
     assert _sell_count(db_engine) == 0
     assert [(row["id"], row["unsold"]) for row in _lots(api, pid)] == [(lot, "1")]
+
+
+# #48 AC2: 3 units bought for $1, 1 sold for $1: realized P&L is exact, not rounded to 8 places
+
+
+def test_realized_pnl_of_a_third_is_not_rounded(api):
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "1", "2026-01-01", quantity="3")
+
+    response = _sell(api, pid, [(lot, "1")], total_usd="1")
+
+    assert response.status_code == 201
+    for sell in (response.json(), _sells(api, pid)[0]):
+        [realized] = [a["realized_pnl_usd"] for a in sell["allocations"]]
+        assert realized.startswith("0.")
+        assert realized[2:20] == "6" * 18
