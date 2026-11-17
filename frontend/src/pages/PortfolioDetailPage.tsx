@@ -115,16 +115,16 @@ function PortfolioDetail({ id }: { id: string }) {
                   {kind === "sell" && expanded === tx.id && (
                     <tr>
                       <td colSpan={8}>
-                        <table aria-label={`Allocations of sell ${tx.id}`} className="ml-6 text-left text-sm">
+                        <table aria-label={`Allocations of sell ${tx.id}`} className="sticky left-0 ml-6 text-left text-sm">
                           <thead>
-                            <tr>{["Lot", "Quantity", "Realized P&L"].map((h) => <th key={h}>{h}</th>)}</tr>
+                            <tr>{["Lot", "Quantity", "Realized P&L"].map((h) => <th key={h} className="px-2">{h}</th>)}</tr>
                           </thead>
                           <tbody>
                             {(tx as Sell).allocations.map((a) => (
                               <tr key={a.id}>
-                                <td>{`Lot ${a.buy_id}${lotDate(a.buy_id) ? ` (${lotDate(a.buy_id)})` : ""}`}</td>
-                                <td>{a.quantity}</td>
-                                <td>{usd(a.realized_pnl_usd)}</td>
+                                <td className="px-2">{`Lot ${a.buy_id}${lotDate(a.buy_id) ? ` (${lotDate(a.buy_id)})` : ""}`}</td>
+                                <td className="px-2">{a.quantity}</td>
+                                <td className="px-2">{usd(a.realized_pnl_usd)}</td>
                               </tr>
                             ))}
                           </tbody>

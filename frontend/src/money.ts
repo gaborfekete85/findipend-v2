@@ -3,11 +3,16 @@
  * BigInt keeps it exact: money never goes through a float.
  */
 function toCents(value: string, shift: number): [bigint, string] | null {
-  if (!/^\d+(\.\d+)?$/.test(value)) return null;
+  if (!isAmount(value)) return null;
   const [whole, fraction = ""] = value.split(".");
   const scale = 10n ** BigInt(fraction.length + shift);
   const cents = (BigInt(whole + fraction) * 200n + scale) / (2n * scale);
   return [cents / 100n, String(cents % 100n).padStart(2, "0")];
+}
+
+/** True when `value` is a non-negative decimal such as "0" or "100.5"; false for "", "abc" or "-1". */
+export function isAmount(value: string): boolean {
+  return /^\d+(\.\d+)?$/.test(value);
 }
 
 /** The default fee, 0.1% of `total` in cents ("1000" → "1.00"); "" while total is not a number. */

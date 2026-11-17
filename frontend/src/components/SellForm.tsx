@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/react";
 import { type FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "../api/client";
-import { addQuantities, defaultFee, fifo, sumsTo } from "../money";
+import { addQuantities, defaultFee, fifo, isAmount, sumsTo } from "../money";
 import { type Buy, Field, today } from "./BuyForm";
 
 /** A sell as the API returns it: the buy fields plus the lots it draws from. */
@@ -54,7 +54,7 @@ export default function SellForm({ portfolioId, sell, onSaved }: { portfolioId: 
     .filter((row) => row.available !== "0");
   const prefill = fifo(open.map((row) => row.available), quantity);
   const values = open.map((row, i) => (edited ? (edited[row.lot.id] ?? "") : prefill[i]));
-  const ready = !!asset && sumsTo(values, quantity);
+  const ready = !!asset && sumsTo(values, quantity) && isAmount(total) && isAmount(shownFee);
 
   function allocate(index: number, value: string) {
     setEdited(Object.fromEntries(open.map((row, i) => [row.lot.id, i === index ? value : values[i]])));

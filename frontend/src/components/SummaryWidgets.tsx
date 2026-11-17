@@ -7,6 +7,8 @@ export type Summary = {
   realized_pnl_usd: string;
   unrealized_pnl_usd: string;
   total_pnl_usd: string;
+  /** True when some asset had no price and is left out of the totals. */
+  partial?: boolean;
 };
 
 /** One asset's position and P&L; price fields are null when there is no price. */
@@ -42,14 +44,17 @@ export default function SummaryWidgets({ summary }: { summary: Summary }) {
     ["Total P&L", <Pnl value={summary.total_pnl_usd} className={value} />],
   ] as const;
   return (
-    <ul aria-label="Summary" className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-      {widgets.map(([label, widget]) => (
-        <li key={label} className="rounded border p-3">
-          <span className="block text-sm text-gray-500">{label}</span>
-          {widget}
-        </li>
-      ))}
-    </ul>
+    <div>
+      <ul aria-label="Summary" className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        {widgets.map(([label, widget]) => (
+          <li key={label} className="rounded border p-3">
+            <span className="block text-sm text-gray-500">{label}</span>
+            {widget}
+          </li>
+        ))}
+      </ul>
+      {summary.partial && <p className="mt-2 text-sm text-gray-500">Some prices unavailable — totals exclude those assets</p>}
+    </div>
   );
 }
 
