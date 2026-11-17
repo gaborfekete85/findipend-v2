@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -42,9 +43,9 @@ def test_gitignore_excludes_env_venv_and_pycache():
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not installed")
-def test_docker_compose_config_lists_postgres_and_backend():
+def test_docker_compose_config_lists_postgres_backend_and_frontend():
     result = subprocess.run(
-        ["docker", "compose", "config", "--services"],
+        ["docker", "compose", "config", "--format", "json"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -52,4 +53,15 @@ def test_docker_compose_config_lists_postgres_and_backend():
     )
 
     assert result.returncode == 0, result.stderr
-    assert sorted(result.stdout.split()) == ["backend", "postgres"]
+    services = json.loads(result.stdout)["services"]
+    assert sorted(services) == ["backend", "frontend", "postgres"]
+    published = [port["published"] for port in services["frontend"]["ports"]]
+    assert published == ["3000"]
+
+
+def test_frontend_lockfile_is_bun_lock_only():
+    frontend = REPO_ROOT / "frontend"
+
+    assert (frontend / "package.json").is_file()
+    assert (frontend / "bun.lock").is_file()
+    assert not (frontend / "package-lock.json").exists()
