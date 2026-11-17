@@ -33,15 +33,15 @@ function buy(id: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** Renders /portfolios/1. Each "METHOD path" answers from its queue; the last answer repeats. */
-function renderPage(routes: Record<string, (() => Response)[]>) {
+/** Renders `entry` (default /portfolios/1). Each "METHOD path" answers from its queue; the last answer repeats. */
+function renderPage(routes: Record<string, (() => Response)[]>, entry = "/portfolios/1") {
   routes["GET /api/v1/portfolios/1"] = [json(200, { id: 1, name: "Long term" })];
   fetchMock.mockImplementation(async (url, init) => {
     const queue = routes[`${init?.method ?? "GET"} ${String(url).replace(API, "")}`];
     return (queue.length > 1 ? queue.shift()! : queue[0])();
   });
   render(
-    <MemoryRouter initialEntries={["/portfolios/1"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/portfolios/:id" element={<PortfolioDetailPage />} />
       </Routes>
@@ -136,4 +136,32 @@ test("deleting a buy that the API rejects with 409 shows the API's message and k
   fireEvent.click(screen.getByRole("button", { name: "Delete buy 1" }));
   await vi.waitFor(async () => expect((await historyRows()).map((row) => row[0])).toEqual(["2026-03-04"]));
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+test.each(["/portfolios/abc", "/portfolios/1%2F..%2F..%2Fsummary", "/portfolios/1.5", "/portfolios/-1"])(
+  "opening %s shows a not-found message and sends no API request",
+  async (entry) => {
+    renderPage({}, entry);
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Portfolio not found");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Add buy" })).toBeNull();
+  },
+);
+
+test("buy ids are passed through encodeURIComponent when building paths", async () => {
+  // The API types ids as numbers; a non-numeric one still cannot leave its path segment.
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [buy("9/../x" as unknown as number)])],
+    "DELETE /api/v1/portfolios/1/buys/9%2F..%2Fx": [() => new Response(null, { status: 204 })],
+  });
+  await historyRows();
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete buy 9/../x" }));
+
+  await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE")).toHaveLength(1));
+  expect(fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${String(url).replace(API, "")}`)).toContain(
+    "DELETE /api/v1/portfolios/1/buys/9%2F..%2Fx",
+  );
 });

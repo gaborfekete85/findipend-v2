@@ -56,3 +56,17 @@ test.each([
 
   expect(renderForm().date.value).toBe(expected);
 });
+
+test("the portfolio and buy ids are passed through encodeURIComponent in the save path", async () => {
+  const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetchMock);
+  const buy = { id: "2/x" as unknown as number, asset_id: "bitcoin", asset_name: "Bitcoin", asset_symbol: "btc" };
+  const amounts = { quantity: "1", total_usd: "10", fee_usd: "0", trade_date: "2026-01-02", comment: null };
+  render(<BuyForm portfolioId="1/.." buy={{ ...buy, ...amounts }} onSaved={() => {}} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Save buy" }));
+
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/v1\/portfolios\/1%2F\.\.\/buys\/2%2Fx$/);
+  vi.unstubAllGlobals();
+});
