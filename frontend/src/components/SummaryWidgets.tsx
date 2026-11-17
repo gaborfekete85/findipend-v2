@@ -22,13 +22,14 @@ export type Position = Summary & {
   total_pnl_usd: string | null;
 };
 
-/** A P&L value with its sign and the profit or loss style; blank when null. */
+/** A P&L value with its sign and the profit or loss style, both taken from the rounded cents; blank when null. */
 export function Pnl({ value, className = "" }: { value: string | null; className?: string }) {
   if (value === null) return null;
-  const negative = value.startsWith("-");
-  const positive = !negative && /[1-9]/.test(value);
-  const style = negative ? "text-red-600" : positive ? "text-green-600" : "";
-  return <span className={`${className} ${style}`.trim()}>{positive ? `+${usd(value)}` : usd(value)}</span>;
+  const shown = usd(value);
+  const zero = !/[1-9]/.test(shown);
+  const negative = !zero && shown.startsWith("-");
+  const style = zero ? "" : negative ? "text-red-600" : "text-green-600";
+  return <span className={`${className} ${style}`.trim()}>{zero ? shown.replace(/^-/, "") : negative ? shown : `+${shown}`}</span>;
 }
 
 export default function SummaryWidgets({ summary }: { summary: Summary }) {
@@ -55,7 +56,8 @@ export default function SummaryWidgets({ summary }: { summary: Summary }) {
 export function PositionsTable({ name, positions }: { name: string; positions: Position[] }) {
   return (
     <div className="overflow-x-auto">
-      <table aria-label={name} className="w-full text-left">
+      <table className="w-full text-left">
+        <caption className="text-left text-lg font-semibold">{name}</caption>
         <thead>
           <tr>
             {["Asset", "Quantity", "Cost basis", "Price", "Market value", "Realized P&L", "Unrealized P&L", "Total P&L"].map((h) => (
