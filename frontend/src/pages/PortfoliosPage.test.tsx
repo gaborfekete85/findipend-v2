@@ -2,9 +2,9 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import PortfoliosPage from "./PortfoliosPage";
 
-vi.mock("@clerk/react", () => ({
-  useAuth: () => ({ getToken: async () => "mock-token" }),
-}));
+// Clerk memoizes getToken, so the mock hands out one stable function too.
+const auth = vi.hoisted(() => ({ getToken: async () => "mock-token" }));
+vi.mock("@clerk/react", () => ({ useAuth: () => auth }));
 
 const fetchMock = vi.fn<typeof fetch>();
 const API = "https://api.example.test";
