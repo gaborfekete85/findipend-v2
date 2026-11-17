@@ -150,7 +150,7 @@ export default function PortfoliosPage() {
               ) : (
                 <>
                   <span data-portfolio-name className="flex-1">
-                    {portfolio.name}
+                    <a href={`/portfolios/${portfolio.id}`}>{portfolio.name}</a>
                   </span>
                   <button
                     type="button"

@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import PortfoliosPage from "./PortfoliosPage";
 
@@ -21,14 +20,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   fetchMock.mockReset();
 });
-
-function renderPage() {
-  render(
-    <MemoryRouter>
-      <PortfoliosPage />
-    </MemoryRouter>,
-  );
-}
 
 function portfolio(id: number, name: string) {
   return { id, name, created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" };
@@ -68,7 +59,7 @@ async function listedNames() {
 test("renders the portfolios the API returns, by name", async () => {
   mockApi([portfolio(1, "Long term"), portfolio(2, "Trading")]);
 
-  renderPage();
+  render(<PortfoliosPage />);
 
   expect(await listedNames()).toEqual(["Long term", "Trading"]);
   expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -81,18 +72,15 @@ test("renders the portfolios the API returns, by name", async () => {
 
 test("each portfolio name links to its detail page", async () => {
   mockApi([portfolio(1, "Long term"), portfolio(2, "Trading")]);
-  renderPage();
+  render(<PortfoliosPage />);
 
   const links = await screen.findAllByRole("link");
-  expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
-    ["Long term", "/portfolios/1"],
-    ["Trading", "/portfolios/2"],
-  ]);
+  expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["Long term", "/portfolios/1"], ["Trading", "/portfolios/2"]]);
 });
 
 test("submitting a new name posts it and the new portfolio appears in the list", async () => {
   mockApi([portfolio(1, "Long term")], jsonResponse(201, portfolio(3, "Savings")));
-  renderPage();
+  render(<PortfoliosPage />);
   await screen.findByText("Long term");
 
   fireEvent.change(screen.getByLabelText("New portfolio name"), { target: { value: "Savings" } });
@@ -114,7 +102,7 @@ test.each([
   [422, { detail: [{ loc: ["body", "name"], msg: "String should have at least 1 character" }] }, "name: String should have at least 1 character"],
 ])("a %i on create shows its message next to the form and adds nothing", async (status, body, message) => {
   mockApi([portfolio(1, "Long term")], jsonResponse(status, body));
-  renderPage();
+  render(<PortfoliosPage />);
   await screen.findByText("Long term");
 
   fireEvent.change(screen.getByLabelText("New portfolio name"), { target: { value: "Long term" } });
@@ -130,7 +118,7 @@ test("the delete confirm button stays disabled until the exact name is typed, th
     [portfolio(1, "Long term"), portfolio(2, "Trading")],
     new Response(null, { status: 204 }),
   );
-  renderPage();
+  render(<PortfoliosPage />);
   await screen.findByText("Trading");
 
   fireEvent.click(screen.getByRole("button", { name: "Delete Trading" }));
@@ -167,7 +155,7 @@ test("renaming sends a PATCH with the new name and the list shows it", async () 
     [portfolio(1, "Long term"), portfolio(2, "Trading")],
     jsonResponse(200, portfolio(1, "Retirement")),
   );
-  renderPage();
+  render(<PortfoliosPage />);
   await screen.findByText("Long term");
 
   fireEvent.click(screen.getByRole("button", { name: "Rename Long term" }));
@@ -191,7 +179,7 @@ test("renaming a portfolio while its delete dialog is open makes the dialog expe
     jsonResponse(200, portfolio(2, "Swing")),
     new Response(null, { status: 204 }),
   );
-  renderPage();
+  render(<PortfoliosPage />);
   await screen.findByText("Trading");
 
   fireEvent.click(screen.getByRole("button", { name: "Delete Trading" }));
@@ -228,7 +216,7 @@ test("renaming a different portfolio leaves the open delete dialog's expected na
     [portfolio(1, "Long term"), portfolio(2, "Trading")],
     jsonResponse(200, portfolio(1, "Retirement")),
   );
-  renderPage();
+  render(<PortfoliosPage />);
   await screen.findByText("Trading");
 
   fireEvent.click(screen.getByRole("button", { name: "Delete Trading" }));
