@@ -3,11 +3,13 @@ from typing import Annotated
 from fastapi import Depends, FastAPI
 
 from app.api import assets
+from app.api.buys import router as buys_router
 from app.api.portfolios import router as portfolios_router
 from app.core.auth import current_user_id
 
 app = FastAPI(title="Findipend")
 app.include_router(portfolios_router)
+app.include_router(buys_router)
 app.include_router(assets.router)
 
 
