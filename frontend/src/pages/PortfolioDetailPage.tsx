@@ -4,6 +4,7 @@ import { useParams } from "react-router";
 import { apiFetch } from "../api/client";
 import BuyForm, { type Buy } from "../components/BuyForm";
 import SellForm, { type Sell } from "../components/SellForm";
+import SummaryWidgets, { PositionsTable, type Position, type Summary } from "../components/SummaryWidgets";
 import { usd } from "../money";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Request failed");
@@ -20,15 +21,24 @@ function PortfolioDetail({ id }: { id: string }) {
   const [name, setName] = useState("");
   const [buys, setBuys] = useState<Buy[] | null>(null);
   const [sells, setSells] = useState<Sell[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [positions, setPositions] = useState<{ open: Position[]; closed: Position[] } | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<{ kind: "buy" | "sell"; tx?: Buy } | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const path = `/api/v1/portfolios/${encodeURIComponent(id)}`;
 
+  // P&L changes with every buy or sell, so it reloads with the history and after a delete.
+  const loadPnl = useCallback(() => {
+    apiFetch<Summary>(`${path}/summary`, getToken).then(setSummary, (e: unknown) => setError(message(e)));
+    apiFetch<{ open: Position[]; closed: Position[] }>(`${path}/positions`, getToken).then(setPositions, (e: unknown) => setError(message(e)));
+  }, [path, getToken]);
+
   const loadHistory = useCallback(() => {
     apiFetch<Buy[]>(`${path}/buys`, getToken).then(setBuys, (e: unknown) => setError(message(e)));
     apiFetch<Sell[]>(`${path}/sells`, getToken).then(setSells, (e: unknown) => setError(message(e)));
-  }, [path, getToken]);
+    loadPnl();
+  }, [path, getToken, loadPnl]);
 
   useEffect(() => {
     apiFetch<{ name: string }>(path, getToken).then((p) => setName(p.name), (e: unknown) => setError(message(e)));
@@ -41,6 +51,7 @@ function PortfolioDetail({ id }: { id: string }) {
       await apiFetch<void>(`${path}/${kind}s/${encodeURIComponent(txId)}`, getToken, { method: "DELETE" });
       if (kind === "buy") setBuys((list) => (list ?? []).filter((b) => b.id !== txId));
       else setSells((list) => list.filter((s) => s.id !== txId));
+      loadPnl();
     } catch (e) {
       setError(message(e));
     }
@@ -58,6 +69,13 @@ function PortfolioDetail({ id }: { id: string }) {
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-8">
       <h1 className="text-3xl font-bold">{name}</h1>
+      {summary && <SummaryWidgets summary={summary} />}
+      {positions && (
+        <>
+          <PositionsTable name="Open positions" positions={positions.open} />
+          <PositionsTable name="Closed positions" positions={positions.closed} />
+        </>
+      )}
       {editing?.kind === "buy" && <BuyForm key={editing.tx?.id ?? "new"} portfolioId={id} buy={editing.tx} onSaved={saved} />}
       {editing?.kind === "sell" && <SellForm key={editing.tx?.id ?? "new"} portfolioId={id} sell={editing.tx as Sell | undefined} onSaved={saved} />}
       <button type="button" onClick={() => toggle("buy")} className="mr-2 rounded border px-3 py-1">

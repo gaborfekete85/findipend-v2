@@ -33,10 +33,17 @@ function buy(id: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
+const totals = {
+  ...{ total_invested_usd: "0", cost_basis_usd: "0", realized_pnl_usd: "0", market_value_usd: "0" },
+  ...{ unrealized_pnl_usd: "0", total_pnl_usd: "0", partial: false },
+};
+
 /** Renders `entry` (default /portfolios/1). Each "METHOD path" answers from its queue; the last answer repeats. */
 function renderPage(routes: Record<string, (() => Response)[]>, entry = "/portfolios/1") {
   routes["GET /api/v1/portfolios/1"] = [json(200, { id: 1, name: "Long term" })];
   routes["GET /api/v1/portfolios/1/sells"] ??= [json(200, [])];
+  routes["GET /api/v1/portfolios/1/summary"] ??= [json(200, totals)];
+  routes["GET /api/v1/portfolios/1/positions"] ??= [json(200, { open: [], closed: [] })];
   fetchMock.mockImplementation(async (url, init) => {
     const queue = routes[`${init?.method ?? "GET"} ${String(url).replace(API, "")}`];
     return (queue.length > 1 ? queue.shift()! : queue[0])();
@@ -203,4 +210,42 @@ test("a sell row in the history expands to list its allocations with realized P&
   ]);
   fireEvent.click(toggle);
   expect(screen.queryByRole("table", { name: "Allocations of sell 7" })).toBeNull();
+});
+
+test("portfolio detail shows its summary widgets and open and closed positions in separate tables", async () => {
+  const position = {
+    ...{ asset_id: "bitcoin", asset_name: "Bitcoin", asset_symbol: "btc", quantity: "0.5" },
+    ...{ total_invested_usd: "30000", cost_basis_usd: "15000", average_buy_price_usd: "30000", realized_pnl_usd: "-500.25" },
+    ...{ price_usd: "40000", price_as_of: "2026-11-17T10:00:00Z", price_unavailable: false },
+    ...{ market_value_usd: "20000", unrealized_pnl_usd: "5000", total_pnl_usd: "4499.75" },
+  };
+  const closed = {
+    ...position, asset_id: "ethereum", asset_name: "Ethereum", asset_symbol: "eth", quantity: "0", average_buy_price_usd: null,
+    ...{ total_invested_usd: "2000", cost_basis_usd: "0", realized_pnl_usd: "300", price_usd: null, price_as_of: null },
+    ...{ market_value_usd: "0", unrealized_pnl_usd: "0", total_pnl_usd: "300" },
+  };
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [])],
+    "GET /api/v1/portfolios/1/summary": [json(200, { ...totals, total_invested_usd: "32000", total_pnl_usd: "4799.75" })],
+    "GET /api/v1/portfolios/1/positions": [json(200, { open: [position], closed: [closed] })],
+  });
+
+  const table = async (name: string) =>
+    within((await screen.findByRole("table", { name })).querySelector("tbody")!)
+      .queryAllByRole("row")
+      .map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
+  expect(await table("Open positions")).toEqual([
+    ["BTC", "0.5", "$15,000.00", "$40,000.00", "$20,000.00", "-$500.25", "+$5,000.00", "+$4,499.75"],
+  ]);
+  expect(await table("Closed positions")).toEqual([["ETH", "0", "$0.00", "", "$0.00", "+$300.00", "$0.00", "+$300.00"]]);
+  const widgets = within(screen.getByRole("list", { name: "Summary" })).getAllByRole("listitem").map((item) => item.textContent);
+  expect(widgets).toEqual(["Total invested$32,000.00", "Cost basis$0.00", "Realized P&L$0.00", "Unrealized P&L$0.00", "Total P&L+$4,799.75"]);
+});
+
+test("the open and closed positions tables carry visible titles", async () => {
+  renderPage({ "GET /api/v1/portfolios/1/buys": [json(200, [])] });
+
+  await screen.findByRole("table", { name: "Open positions" });
+  expect(screen.getByText("Open positions")).toBeTruthy();
+  expect(screen.getByText("Closed positions")).toBeTruthy();
 });
