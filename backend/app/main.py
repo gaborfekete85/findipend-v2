@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI
 
 from app.api import assets
+from app.api.analytics import router as analytics_router
 from app.api.buys import router as buys_router
 from app.api.portfolios import router as portfolios_router
 from app.api.sells import router as sells_router
@@ -13,6 +14,7 @@ app.include_router(portfolios_router)
 app.include_router(buys_router)
 app.include_router(sells_router)
 app.include_router(assets.router)
+app.include_router(analytics_router)
 
 
 @app.get("/api/v1/health")
