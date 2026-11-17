@@ -70,6 +70,14 @@ test("renders the portfolios the API returns, by name", async () => {
   });
 });
 
+test("each portfolio name links to its detail page", async () => {
+  mockApi([portfolio(1, "Long term"), portfolio(2, "Trading")]);
+  render(<PortfoliosPage />);
+
+  const links = await screen.findAllByRole("link");
+  expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["Long term", "/portfolios/1"], ["Trading", "/portfolios/2"]]);
+});
+
 test("submitting a new name posts it and the new portfolio appears in the list", async () => {
   mockApi([portfolio(1, "Long term")], jsonResponse(201, portfolio(3, "Savings")));
   render(<PortfoliosPage />);

@@ -15,6 +15,10 @@ vi.mock("./pages/PortfoliosPage", () => ({
   default: () => <h1>Portfolios</h1>,
 }));
 
+vi.mock("./pages/PortfolioDetailPage", () => ({
+  default: () => <h1>Portfolio detail</h1>,
+}));
+
 afterEach(cleanup);
 
 function renderApp(signedIn: boolean, path = "/") {
@@ -53,4 +57,10 @@ test("the /portfolios route renders the portfolios page", () => {
   renderApp(true, "/portfolios");
 
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Portfolios");
+});
+
+test("the /portfolios/:id route renders the portfolio detail page", () => {
+  renderApp(true, "/portfolios/7");
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Portfolio detail");
 });

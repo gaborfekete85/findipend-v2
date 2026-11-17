@@ -1,6 +1,7 @@
 import { SignIn, UserButton, useAuth } from "@clerk/react";
 import { Route, Routes } from "react-router";
 import HomePage from "./pages/HomePage";
+import PortfolioDetailPage from "./pages/PortfolioDetailPage";
 import PortfoliosPage from "./pages/PortfoliosPage";
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/portfolios" element={<PortfoliosPage />} />
+        <Route path="/portfolios/:id" element={<PortfolioDetailPage />} />
       </Routes>
     </>
   );
