@@ -11,12 +11,16 @@ vi.mock("@clerk/react", () => ({
   UserButton: () => <button type="button" data-testid="clerk-user-button" />,
 }));
 
+vi.mock("./pages/PortfoliosPage", () => ({
+  default: () => <h1>Portfolios</h1>,
+}));
+
 afterEach(cleanup);
 
-function renderApp(signedIn: boolean) {
+function renderApp(signedIn: boolean, path = "/") {
   auth.isSignedIn = signedIn;
   render(
-    <MemoryRouter initialEntries={["/"]}>
+    <MemoryRouter initialEntries={[path]}>
       <App />
     </MemoryRouter>,
   );
@@ -43,4 +47,10 @@ test("a signed-in user sees the home heading and a user button", () => {
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Findipend");
   expect(screen.getByTestId("clerk-user-button")).toBeTruthy();
   expect(screen.queryByTestId("clerk-sign-in")).toBeNull();
+});
+
+test("the /portfolios route renders the portfolios page", () => {
+  renderApp(true, "/portfolios");
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Portfolios");
 });
