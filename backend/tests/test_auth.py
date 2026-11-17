@@ -1,3 +1,4 @@
+import http.client
 import io
 import json
 import time
@@ -185,6 +186,9 @@ def _failing_urlopen(error):
     [
         pytest.param(urllib.error.URLError("connection refused"), id="network-error"),
         pytest.param(TimeoutError("timed out"), id="timeout"),
+        pytest.param(http.client.IncompleteRead(b'{"ke'), id="incomplete-read"),
+        pytest.param(http.client.BadStatusLine("garbage"), id="bad-status-line"),
+        pytest.param(http.client.LineTooLong("header line"), id="line-too-long"),
         pytest.param(b"<html>Bad Gateway</html>", id="not-json"),
         pytest.param(b"{}", id="json-without-keys"),
         pytest.param(b"[]", id="json-list"),
