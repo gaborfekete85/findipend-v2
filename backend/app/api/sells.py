@@ -1,10 +1,10 @@
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Response, status
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.api.portfolios import Db, UserId, _owned
+from app.api.portfolios import Db, UserId, _is_db_id, _owned
 from app.models import Allocation, Buy, Sell
 from app.schemas.buys import BuyOut
 from app.schemas.sells import AllocationOut, LotOut, SellIn, SellOut
@@ -58,16 +58,28 @@ def _sell_out(db: Session, sell: Sell) -> SellOut:
     return SellOut(**BuyOut.model_validate(sell).model_dump(), allocations=allocations)
 
 
-@router.post("/sells", status_code=status.HTTP_201_CREATED)
-def create_sell(portfolio_id: int, body: SellIn, user_id: UserId, db: Db) -> SellOut:
+def _owned_sell(db: Session, user_id: str, portfolio_id: int, sell_id: int) -> Sell:
+    """A sell in the caller's portfolio, locked until commit; anything else is a 404."""
     _owned(db, user_id, portfolio_id)
+    if not _is_db_id(sell_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sell not found")
+    query = select(Sell).where(Sell.id == sell_id, Sell.portfolio_id == portfolio_id)
+    sell = db.scalar(query.with_for_update())
+    if sell is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sell not found")
+    return sell
+
+
+def _record(db: Session, portfolio_id: int, sell: Sell, body: SellIn) -> SellOut:
+    """Validate the allocations, then write the sell and them in one commit; 409 changes nothing."""
     conflict = allocation_conflict(
         db, portfolio_id, body.asset_id, body.trade_date, body.allocations
     )
     if conflict:
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, conflict)
-    sell = Sell(portfolio_id=portfolio_id, **body.model_dump(exclude={"allocations"}))
+    for field, value in body.model_dump(exclude={"allocations"}).items():
+        setattr(sell, field, value)
     db.add(sell)
     db.flush()
     db.add_all(
@@ -78,6 +90,12 @@ def create_sell(portfolio_id: int, body: SellIn, user_id: UserId, db: Db) -> Sel
     return _sell_out(db, sell)
 
 
+@router.post("/sells", status_code=status.HTTP_201_CREATED)
+def create_sell(portfolio_id: int, body: SellIn, user_id: UserId, db: Db) -> SellOut:
+    _owned(db, user_id, portfolio_id)
+    return _record(db, portfolio_id, Sell(portfolio_id=portfolio_id), body)
+
+
 @router.get("/sells")
 def list_sells(portfolio_id: int, user_id: UserId, db: Db) -> list[SellOut]:
     _owned(db, user_id, portfolio_id)
@@ -85,3 +103,19 @@ def list_sells(portfolio_id: int, user_id: UserId, db: Db) -> list[SellOut]:
         select(Sell).where(Sell.portfolio_id == portfolio_id).order_by(Sell.trade_date, Sell.id)
     ).all()
     return [_sell_out(db, sell) for sell in sells]
+
+
+@router.put("/sells/{sell_id}")
+def edit_sell(portfolio_id: int, sell_id: int, body: SellIn, user_id: UserId, db: Db) -> SellOut:
+    """Replace the sell and its allocations; its old allocations count as unsold while validating."""
+    sell = _owned_sell(db, user_id, portfolio_id, sell_id)
+    db.execute(delete(Allocation).where(Allocation.sell_id == sell.id))
+    return _record(db, portfolio_id, sell, body)
+
+
+@router.delete("/sells/{sell_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sell(portfolio_id: int, sell_id: int, user_id: UserId, db: Db) -> Response:
+    """Delete the sell; its allocations cascade, releasing their quantity back to the lots."""
+    db.delete(_owned_sell(db, user_id, portfolio_id, sell_id))
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
