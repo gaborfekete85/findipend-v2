@@ -29,18 +29,23 @@ def allocation_conflict(
 ) -> str | None:
     """Why the allocations cannot be recorded, naming the lot, or None when they are allowed.
 
-    Locks the chosen lots until commit so two sells cannot oversell one lot together.
+    Locks the chosen lots until commit, so no other sell or buy edit can race this one.
     """
     ids = sorted(a.buy_id for a in allocations)
     lots = {
         buy.id: buy
-        for buy in db.scalars(select(Buy).where(Buy.id.in_(ids)).order_by(Buy.id).with_for_update())
+        for buy in db.scalars(
+            select(Buy)
+            .where(Buy.id.in_(ids), Buy.portfolio_id == portfolio_id)
+            .order_by(Buy.id)
+            .with_for_update()
+        )
     }
     unsold = unsold_by_lot(db, ids)
     for allocation in allocations:
         lot = lots.get(allocation.buy_id)
         name = f"lot {allocation.buy_id}"
-        if lot is None or lot.portfolio_id != portfolio_id:
+        if lot is None:
             return f"{name} is not in this portfolio"
         if lot.asset_id != asset_id:
             return f"{name} is {lot.asset_id}, not {asset_id}"

@@ -15,7 +15,9 @@ def _owned_buy(db: Session, user_id: str, portfolio_id: int, buy_id: int) -> Buy
     _owned(db, user_id, portfolio_id)
     if not _is_db_id(buy_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Buy not found")
-    buy = db.scalar(select(Buy).where(Buy.id == buy_id, Buy.portfolio_id == portfolio_id))
+    # Locked like a sell's lots, so an edit or delete cannot race a sell drawing from it.
+    query = select(Buy).where(Buy.id == buy_id, Buy.portfolio_id == portfolio_id)
+    buy = db.scalar(query.with_for_update())
     if buy is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Buy not found")
     return buy
