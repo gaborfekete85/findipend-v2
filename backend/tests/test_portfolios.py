@@ -2,38 +2,9 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
-from sqlalchemy.orm import Session
 
-from app.core.auth import current_user_id
-from app.core.db import get_session
-from app.main import app
-
-ALICE = "user_alice"
-BOB = "user_bob"
-
-
-@pytest.fixture
-def api(db_engine: Engine):
-    """A test client on the migrated test database; `api.as_user(id)` picks the caller."""
-    caller = {"id": ALICE}
-
-    def session():
-        with Session(db_engine) as s:
-            yield s
-
-    app.dependency_overrides[get_session] = session
-    app.dependency_overrides[current_user_id] = lambda: caller["id"]
-    client = TestClient(app)
-
-    def as_user(user_id: str) -> TestClient:
-        caller["id"] = user_id
-        return client
-
-    client.as_user = as_user
-    yield client
-    app.dependency_overrides.clear()
+from tests.conftest import ALICE, BOB
 
 
 def _create(api, user: str, name: str):
