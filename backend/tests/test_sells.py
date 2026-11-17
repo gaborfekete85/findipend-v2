@@ -332,3 +332,64 @@ def test_edit_and_delete_of_a_missing_sell_return_404(api, sell_id):
 
     assert _edit(api, pid, sell_id, [(lot_a, "1")]).status_code == 404
     assert _delete(api, pid, sell_id).status_code == 404
+
+
+# Issue 43: exact unsold display and strict lot ids
+
+BIG = "12345678901234567890.123456789012345677"
+
+
+def test_lots_show_the_exact_unsold_quantity_of_a_38_digit_lot(api):
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "1000", "2026-01-01", quantity=BIG)
+
+    assert [(row["id"], row["unsold"]) for row in _lots(api, pid)] == [(lot, BIG)]
+
+
+def test_over_allocating_a_38_digit_lot_quotes_the_exact_unsold_quantity(api, db_engine):
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "1000", "2026-01-01", quantity=BIG)
+    over = "12345678901234567890.123456789012345678"
+
+    response = _sell(api, pid, [(lot, over)], quantity=over)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == f"lot {lot} has {BIG} unsold, less than the {over} allocated"
+    assert _sell_count(db_engine) == 0
+
+
+def _raw_sell(api, pid: int, buy_id) -> object:
+    body = {
+        **BTC, "quantity": "1", "total_usd": "60000", "trade_date": "2026-03-01",
+        "allocations": [{"buy_id": buy_id, "quantity": "1"}],
+    }
+    return api.as_user(ALICE).post(f"/api/v1/portfolios/{pid}/sells", json=body)
+
+
+@pytest.mark.parametrize("kind", ["true", "string", "float"])
+def test_sell_with_a_non_integer_buy_id_returns_422(api, db_engine, kind):
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "30000", "2026-01-01")
+    assert lot == 1  # so `true`, "1" and 1.0 would all name this lot if coerced
+    buy_id = {"true": True, "string": str(lot), "float": float(lot)}[kind]
+
+    assert _raw_sell(api, pid, buy_id).status_code == 422
+    assert _sell_count(db_engine) == 0
+
+
+def test_sell_with_an_integer_buy_id_is_accepted(api):
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "30000", "2026-01-01")
+
+    assert _raw_sell(api, pid, lot).status_code == 201
+
+
+def test_allocating_the_same_lot_twice_returns_422_and_keeps_unsold(api, db_engine):
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "30000", "2026-01-01")
+
+    response = _sell(api, pid, [(lot, "0.6"), (lot, "0.6")], quantity="1.2")
+
+    assert response.status_code == 422
+    assert _sell_count(db_engine) == 0
+    assert [(row["id"], row["unsold"]) for row in _lots(api, pid)] == [(lot, "1")]
