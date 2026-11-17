@@ -20,3 +20,9 @@ def clerk_authorized_parties() -> list[str]:
 def database_url() -> str:
     """SQLAlchemy URL of the app database, read from the environment on each call."""
     return os.environ["DATABASE_URL"]
+
+
+def cors_allowed_origins() -> list[str]:
+    """Browser origins allowed to call the API, from comma-separated CORS_ALLOWED_ORIGINS."""
+    raw = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
