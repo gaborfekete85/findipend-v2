@@ -1,14 +1,14 @@
 from decimal import Decimal, localcontext
 from typing import Annotated
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictInt, model_validator
 
 from app.schemas.buys import BuyIn, BuyOut, DecimalStr, Quantity
 from app.services.lots import SUM_PRECISION
 
 
 class AllocationIn(BaseModel):
-    buy_id: Annotated[int, Field(ge=1, lt=2**31)]  # Postgres INTEGER; larger ids would 500
+    buy_id: Annotated[StrictInt, Field(ge=1, lt=2**31)]  # Postgres INTEGER; larger ids would 500
     quantity: Quantity
 
 

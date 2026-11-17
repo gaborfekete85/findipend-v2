@@ -14,7 +14,9 @@ SUM_PRECISION = 60
 
 
 def _plain(value: Decimal) -> str:
-    return format(value.normalize(), "f")
+    """Normalized plain string ("1", "0.75"); the wide context keeps all 38 digits."""
+    with localcontext(prec=SUM_PRECISION):
+        return format(value.normalize(), "f")
 
 
 def _draws(db: Session, buy_id: int) -> list[tuple[Sell, Decimal]]:
