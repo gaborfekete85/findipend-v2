@@ -1,8 +1,9 @@
 import { useAuth } from "@clerk/react";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { apiFetch } from "../api/client";
 import BuyForm, { type Buy } from "../components/BuyForm";
+import SellForm, { type Sell } from "../components/SellForm";
 import { usd } from "../money";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Request failed");
@@ -18,43 +19,51 @@ function PortfolioDetail({ id }: { id: string }) {
   const { getToken } = useAuth();
   const [name, setName] = useState("");
   const [buys, setBuys] = useState<Buy[] | null>(null);
+  const [sells, setSells] = useState<Sell[]>([]);
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState<Buy | "new" | null>(null);
+  const [editing, setEditing] = useState<{ kind: "buy" | "sell"; tx?: Buy } | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
   const path = `/api/v1/portfolios/${encodeURIComponent(id)}`;
 
-  const loadBuys = useCallback(() => {
+  const loadHistory = useCallback(() => {
     apiFetch<Buy[]>(`${path}/buys`, getToken).then(setBuys, (e: unknown) => setError(message(e)));
+    apiFetch<Sell[]>(`${path}/sells`, getToken).then(setSells, (e: unknown) => setError(message(e)));
   }, [path, getToken]);
 
   useEffect(() => {
     apiFetch<{ name: string }>(path, getToken).then((p) => setName(p.name), (e: unknown) => setError(message(e)));
-    loadBuys();
-  }, [path, getToken, loadBuys]);
+    loadHistory();
+  }, [path, getToken, loadHistory]);
 
-  async function remove(buy: Buy) {
+  async function remove(kind: "buy" | "sell", txId: number) {
     setError("");
     try {
-      await apiFetch<void>(`${path}/buys/${encodeURIComponent(buy.id)}`, getToken, { method: "DELETE" });
-      setBuys((list) => (list ?? []).filter((b) => b.id !== buy.id));
+      await apiFetch<void>(`${path}/${kind}s/${encodeURIComponent(txId)}`, getToken, { method: "DELETE" });
+      if (kind === "buy") setBuys((list) => (list ?? []).filter((b) => b.id !== txId));
+      else setSells((list) => list.filter((s) => s.id !== txId));
     } catch (e) {
       setError(message(e));
     }
   }
 
+  const saved = () => (setEditing(null), loadHistory());
+  const toggle = (kind: "buy" | "sell") => setEditing(editing ? null : { kind });
+  // Buys before sells on the same date: a sell can only draw from lots bought on or before it.
+  const history = [
+    ...(buys ?? []).map((tx) => ({ kind: "buy" as const, tx })),
+    ...sells.map((tx) => ({ kind: "sell" as const, tx })),
+  ].sort((a, b) => a.tx.trade_date.localeCompare(b.tx.trade_date));
+  const lotDate = (buyId: number) => buys?.find((b) => b.id === buyId)?.trade_date;
+
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-8">
       <h1 className="text-3xl font-bold">{name}</h1>
-      {editing && (
-        <BuyForm
-          key={editing === "new" ? "new" : editing.id}
-          portfolioId={id}
-          buy={editing === "new" ? undefined : editing}
-          onSaved={() => (setEditing(null), loadBuys())}
-        />
-      )}
-      <button type="button" onClick={() => setEditing(editing ? null : "new")} className="rounded border px-3 py-1">
+      {editing?.kind === "buy" && <BuyForm key={editing.tx?.id ?? "new"} portfolioId={id} buy={editing.tx} onSaved={saved} />}
+      {editing?.kind === "sell" && <SellForm key={editing.tx?.id ?? "new"} portfolioId={id} sell={editing.tx as Sell | undefined} onSaved={saved} />}
+      <button type="button" onClick={() => toggle("buy")} className="mr-2 rounded border px-3 py-1">
         {editing ? "Cancel" : "Add buy"}
       </button>
+      {!editing && <button type="button" onClick={() => toggle("sell")} className="rounded border px-3 py-1">Add sell</button>}
       {error && <p role="alert" className="text-red-600">{error}</p>}
       {buys && (
         <div className="overflow-x-auto">
@@ -67,19 +76,45 @@ function PortfolioDetail({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {buys.map((buy) => (
-                <tr key={buy.id} className="border-t">
-                  {[buy.trade_date, "Buy", buy.asset_symbol.toUpperCase(), buy.quantity, usd(buy.total_usd), usd(buy.fee_usd), buy.comment]
-                    .map((text, i) => <td key={i}>{text}</td>)}
-                  <td className="space-x-2">
-                    <button type="button" aria-label={`Edit buy ${buy.id}`} onClick={() => setEditing(buy)}>
-                      Edit
-                    </button>
-                    <button type="button" aria-label={`Delete buy ${buy.id}`} onClick={() => remove(buy)} className="text-red-600">
-                      Delete
-                    </button>
-                  </td>
-                </tr>
+              {history.map(({ kind, tx }) => (
+                <Fragment key={`${kind}-${tx.id}`}>
+                  <tr className="border-t">
+                    {[tx.trade_date, kind === "buy" ? "Buy" : "Sell", tx.asset_symbol.toUpperCase(), tx.quantity, usd(tx.total_usd), usd(tx.fee_usd), tx.comment]
+                      .map((text, i) => <td key={i}>{text}</td>)}
+                    <td className="space-x-2">
+                      {kind === "sell" && (
+                        <button type="button" aria-label={`Allocations of sell ${tx.id}`} aria-expanded={expanded === tx.id}
+                          onClick={() => setExpanded(expanded === tx.id ? null : tx.id)}>Lots</button>
+                      )}
+                      <button type="button" aria-label={`Edit ${kind} ${tx.id}`} onClick={() => setEditing({ kind, tx })}>
+                        Edit
+                      </button>
+                      <button type="button" aria-label={`Delete ${kind} ${tx.id}`} onClick={() => remove(kind, tx.id)} className="text-red-600">
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                  {kind === "sell" && expanded === tx.id && (
+                    <tr>
+                      <td colSpan={8}>
+                        <table aria-label={`Allocations of sell ${tx.id}`} className="ml-6 text-left text-sm">
+                          <thead>
+                            <tr>{["Lot", "Quantity", "Realized P&L"].map((h) => <th key={h}>{h}</th>)}</tr>
+                          </thead>
+                          <tbody>
+                            {(tx as Sell).allocations.map((a) => (
+                              <tr key={a.id}>
+                                <td>{`Lot ${a.buy_id}${lotDate(a.buy_id) ? ` (${lotDate(a.buy_id)})` : ""}`}</td>
+                                <td>{a.quantity}</td>
+                                <td>{usd(a.realized_pnl_usd)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

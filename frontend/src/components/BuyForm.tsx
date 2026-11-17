@@ -11,13 +11,13 @@ export type Buy = { id: number; asset_id: string; asset_name: string; asset_symb
 };
 
 /** Today in the user's time zone, as YYYY-MM-DD. */
-function today() {
+export function today() {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function Field({ label, ...input }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
+export function Field({ label, ...input }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
       {label}
