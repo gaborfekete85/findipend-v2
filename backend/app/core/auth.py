@@ -1,4 +1,5 @@
 import functools
+import http.client
 import json
 import urllib.request
 from typing import Annotated
@@ -42,9 +43,17 @@ def current_user_id(
         raise unauthorized from None
     try:
         keys = jwk_set(url)
-    # OSError: network error or timeout; ValueError: not JSON;
+    # OSError: network error or timeout; http.client.HTTPException: broken HTTP
+    # response (e.g. IncompleteRead); ValueError: not JSON;
     # TypeError, AttributeError, PyJWTError: JSON that is not a JWKS.
-    except (OSError, ValueError, TypeError, AttributeError, jwt.PyJWTError):
+    except (
+        OSError,
+        http.client.HTTPException,
+        ValueError,
+        TypeError,
+        AttributeError,
+        jwt.PyJWTError,
+    ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not fetch Clerk signing keys; try again later",
