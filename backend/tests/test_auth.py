@@ -202,9 +202,7 @@ def test_me_returns_503_when_jwks_fetch_fails(monkeypatch, failure):
 
 def test_jwks_failure_is_not_cached(monkeypatch, fetched_urls, jwks_url):
     working_urlopen = urllib.request.urlopen
-    monkeypatch.setattr(
-        urllib.request, "urlopen", _failing_urlopen(urllib.error.URLError("down"))
-    )
+    monkeypatch.setattr(urllib.request, "urlopen", _failing_urlopen(urllib.error.URLError("down")))
     lenient = TestClient(app, raise_server_exceptions=False)
     headers = {"Authorization": f"Bearer {_token(sub='user_2abc')}"}
 
