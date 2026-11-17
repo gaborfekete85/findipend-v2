@@ -100,13 +100,13 @@ export default function SellForm({ portfolioId, sell, onSaved }: { portfolioId: 
       {asset && (
         <table aria-label="Lots" className="w-full text-left">
           <thead>
-            <tr>{["Lot", "Bought", "Available", "Sell from lot"].map((h) => <th key={h}>{h}</th>)}</tr>
+            <tr>{["Lot", "Bought", "Available", "Sell from lot"].map((h) => <th key={h} className="px-2">{h}</th>)}</tr>
           </thead>
           <tbody>
             {open.map(({ lot, available }, i) => (
               <tr key={lot.id} className="border-t">
-                {[lot.id, lot.trade_date, available].map((text, j) => <td key={j}>{text}</td>)}
-                <td>
+                {[lot.id, lot.trade_date, available].map((text, j) => <td key={j} className="px-2">{text}</td>)}
+                <td className="px-2">
                   <input aria-label={`Allocation from lot ${lot.id}`} inputMode="decimal" value={values[i]}
                     onChange={(e) => allocate(i, e.target.value)} className="w-full rounded border px-2 py-1" />
                 </td>

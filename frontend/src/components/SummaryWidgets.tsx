@@ -66,21 +66,21 @@ export function PositionsTable({ name, positions }: { name: string; positions: P
         <thead>
           <tr>
             {["Asset", "Quantity", "Cost basis", "Price", "Market value", "Realized P&L", "Unrealized P&L", "Total P&L"].map((h) => (
-              <th key={h}>{h}</th>
+              <th key={h} className="px-2">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {positions.map((p) => (
             <tr key={p.asset_id} className="border-t">
-              <td>{p.asset_symbol.toUpperCase()}</td>
-              <td>{p.quantity}</td>
-              <td>{usd(p.cost_basis_usd)}</td>
-              <td>{p.price_unavailable ? `price unavailable${p.price_as_of ? ` (last price ${p.price_as_of})` : ""}` : p.price_usd && usd(p.price_usd)}</td>
-              <td>{p.market_value_usd && usd(p.market_value_usd)}</td>
-              <td><Pnl value={p.realized_pnl_usd} /></td>
-              <td><Pnl value={p.unrealized_pnl_usd} /></td>
-              <td><Pnl value={p.total_pnl_usd} /></td>
+              <td className="px-2">{p.asset_symbol.toUpperCase()}</td>
+              <td className="px-2">{p.quantity}</td>
+              <td className="px-2">{usd(p.cost_basis_usd)}</td>
+              <td className="px-2">{p.price_unavailable ? `price unavailable${p.price_as_of ? ` (last price ${p.price_as_of})` : ""}` : p.price_usd && usd(p.price_usd)}</td>
+              <td className="px-2">{p.market_value_usd && usd(p.market_value_usd)}</td>
+              <td className="px-2"><Pnl value={p.realized_pnl_usd} /></td>
+              <td className="px-2"><Pnl value={p.unrealized_pnl_usd} /></td>
+              <td className="px-2"><Pnl value={p.total_pnl_usd} /></td>
             </tr>
           ))}
         </tbody>
