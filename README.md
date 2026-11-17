@@ -104,7 +104,7 @@ findipend/
 │   │   ├── services/         # Domain logic: allocations, P&L, prices
 │   │   └── main.py
 │   ├── Dockerfile
-│   └── requirements.txt
+│   └── pyproject.toml
 ├── frontend/
 │   ├── src/
 │   │   ├── api/              # Typed API client
