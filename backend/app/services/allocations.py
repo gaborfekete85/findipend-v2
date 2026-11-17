@@ -7,7 +7,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Allocation, Buy, Sell
-from app.schemas.buys import USD_STEP
 from app.schemas.sells import AllocationIn
 from app.services.lots import SUM_PRECISION, _plain
 
@@ -60,8 +59,8 @@ def allocation_conflict(
 
 
 def realized_pnl(sell: Sell, lot: Buy, quantity: Decimal) -> Decimal:
-    """Allocation proceeds minus allocation cost, rounded once to the USD step (8 places)."""
+    """Allocation proceeds minus allocation cost, exact (README: round only at display)."""
     with localcontext(prec=SUM_PRECISION):
         # One division: (sell total × q × lot qty − lot total × q × sell qty) ÷ (sell qty × lot qty)
         numerator = quantity * (sell.total_usd * lot.quantity - lot.total_usd * sell.quantity)
-        return (numerator / (sell.quantity * lot.quantity)).quantize(USD_STEP)
+        return numerator / (sell.quantity * lot.quantity)
