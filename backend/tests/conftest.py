@@ -1,3 +1,4 @@
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -18,11 +19,23 @@ def alembic_config(url: str) -> Config:
     return config
 
 
+def require_docker() -> None:
+    """Fail without the docker CLI, unless FINDIPEND_SKIP_DOCKER_TESTS=1 opts into skipping."""
+    if shutil.which("docker") is not None:
+        return
+    if os.environ.get("FINDIPEND_SKIP_DOCKER_TESTS") == "1":
+        pytest.skip("docker CLI not installed (FINDIPEND_SKIP_DOCKER_TESTS=1)")
+    pytest.fail(
+        "Docker is required for the database tests: install the docker CLI, "
+        "or set FINDIPEND_SKIP_DOCKER_TESTS=1 to skip them.",
+        pytrace=False,
+    )
+
+
 @pytest.fixture(scope="session")
 def postgres_url():
     """A throwaway Postgres 17 server; plain postgresql:// URL like .env.example."""
-    if shutil.which("docker") is None:
-        pytest.skip("docker CLI not installed")
+    require_docker()
     from testcontainers.community.postgres import PostgresContainer
 
     with PostgresContainer("postgres:17", driver=None) as postgres:

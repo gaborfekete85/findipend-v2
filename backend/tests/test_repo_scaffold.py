@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
+from tests.conftest import require_docker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -44,8 +44,8 @@ def test_gitignore_excludes_env_venv_and_pycache():
     assert {".env", ".venv/", "__pycache__/"} <= patterns
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not installed")
 def test_docker_compose_config_lists_postgres_backend_and_frontend():
+    require_docker()
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
         cwd=REPO_ROOT,
@@ -67,8 +67,8 @@ VITE_BUILD_VARS = {
 }
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not installed")
 def test_docker_compose_passes_vite_vars_to_the_frontend_build():
+    require_docker()
     # Vite inlines VITE_* at build time and the image has no .env (PR #19, QA Q1).
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
