@@ -22,7 +22,7 @@ const input = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
 const type = (name: string, value: string) => fireEvent.change(input(name), { target: { value } });
 const submit = () => screen.getByRole("button", { name: "Save sell" }) as HTMLButtonElement;
 
-/** Serves GET .../lots with `lots` and POST .../sells with `post`; renders the form, picks Bitcoin, waits for the lots. */
+/** Serves GET .../lots with `lots` and POST .../sells with `post`; renders the form, picks Bitcoin, enters a total, waits for the lots. */
 async function open(lots: ReturnType<typeof lot>[], post = () => new Response("{}", { status: 201 })) {
   fetchMock.mockImplementation(async (url, init) => {
     const { pathname } = new URL(String(url));
@@ -33,6 +33,7 @@ async function open(lots: ReturnType<typeof lot>[], post = () => new Response("{
   await screen.findByRole("option", { name: "Bitcoin (BTC)" });
   fireEvent.change(input("Asset"), { target: { value: "bitcoin" } });
   type("Trade date", "2026-11-10");
+  type("Total (USD)", "48000");
   await screen.findByLabelText(`Allocation from lot ${lots[0].id}`);
 }
 
@@ -93,4 +94,32 @@ test("submitting posts string quantities with allocations [{buy_id, quantity}]; 
       allocations: [{ buy_id: 1, quantity: "0.5" }, { buy_id: 2, quantity: "0.3" }],
     },
   ]);
+});
+
+test("a lot FIFO leaves unused stays out of the posted allocations", async () => {
+  await open([lot(1, "0.5", "2026-01-01"), lot(2, "1", "2026-02-01"), lot(3, "2", "2026-03-01")]);
+  type("Quantity", "0.8");
+
+  fireEvent.click(submit());
+
+  await vi.waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
+  const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+  expect(JSON.parse(String(post[1]!.body)).allocations).toEqual([{ buy_id: 1, quantity: "0.5" }, { buy_id: 2, quantity: "0.3" }]);
+});
+
+test.each([
+  ["", null, false],
+  ["abc", null, false],
+  ["48000", null, true], // an untouched fee defaults to 0.1% of the total
+  ["48000", "", false],
+  ["48000", "x", false],
+  ["48000", "48", true],
+])("total %j and fee %j: submit enabled is %s", async (total, fee: string | null, enabled) => {
+  await open([lot(1, "0.5", "2026-01-01"), lot(2, "1", "2026-02-01")]);
+  type("Quantity", "0.8");
+
+  type("Total (USD)", total);
+  if (fee !== null) type("Fee (USD)", fee);
+
+  expect(submit().disabled).toBe(!enabled);
 });
