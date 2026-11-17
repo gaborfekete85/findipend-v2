@@ -1,10 +1,11 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
+from tests.conftest import require_docker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -43,8 +44,8 @@ def test_gitignore_excludes_env_venv_and_pycache():
     assert {".env", ".venv/", "__pycache__/"} <= patterns
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not installed")
 def test_docker_compose_config_lists_postgres_backend_and_frontend():
+    require_docker()
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
         cwd=REPO_ROOT,
@@ -66,8 +67,8 @@ VITE_BUILD_VARS = {
 }
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not installed")
 def test_docker_compose_passes_vite_vars_to_the_frontend_build():
+    require_docker()
     # Vite inlines VITE_* at build time and the image has no .env (PR #19, QA Q1).
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
@@ -99,3 +100,64 @@ def test_frontend_lockfile_is_bun_lock_only():
     assert (frontend / "package.json").is_file()
     assert (frontend / "bun.lock").is_file()
     assert not (frontend / "package-lock.json").exists()
+
+
+def test_backend_dockerfile_ships_migrations_and_runs_them_before_uvicorn():
+    lines = [
+        line.strip() for line in (REPO_ROOT / "backend" / "Dockerfile").read_text().splitlines()
+    ]
+    copied = {
+        source
+        for line in lines
+        if line.startswith("COPY ") and "--from" not in line
+        for source in line.split()[1:-1]
+    }
+    assert {"alembic", "alembic.ini"} <= copied
+
+    [cmd] = [line for line in lines if line.startswith("CMD ")]
+    assert "alembic upgrade head" in cmd
+    assert "uvicorn" in cmd
+    assert cmd.index("alembic upgrade head") < cmd.index("uvicorn")
+
+
+def _run_db_tests_without_docker(tmp_path: Path, **extra_env: str):
+    # PATH keeps uv and everything else, minus every directory holding a docker binary.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "uv").symlink_to(shutil.which("uv"))
+    kept = [
+        entry
+        for entry in os.environ["PATH"].split(os.pathsep)
+        if entry and not (Path(entry) / "docker").exists()
+    ]
+    env = {key: value for key, value in os.environ.items() if key != "FINDIPEND_SKIP_DOCKER_TESTS"}
+    env["PATH"] = os.pathsep.join([str(bin_dir), *kept])
+    env.update(extra_env)
+    assert shutil.which("docker", path=env["PATH"]) is None
+    return subprocess.run(
+        ["uv", "run", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_db_schema.py"],
+        cwd=REPO_ROOT / "backend",
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_db_tests_fail_naming_docker_when_docker_is_missing(tmp_path):
+    result = _run_db_tests_without_docker(tmp_path)
+    output = result.stdout + result.stderr
+
+    assert result.returncode != 0, output
+    assert "Docker is required" in output
+    assert "FINDIPEND_SKIP_DOCKER_TESTS=1" in output
+    assert " skipped" not in output.splitlines()[-1]
+
+
+def test_db_tests_skip_when_docker_is_missing_and_skip_is_opted_in(tmp_path):
+    result = _run_db_tests_without_docker(tmp_path, FINDIPEND_SKIP_DOCKER_TESTS="1")
+    output = result.stdout + result.stderr
+
+    assert result.returncode == 0, output
+    summary = result.stdout.strip().splitlines()[-1]
+    assert re.fullmatch(r"\d+ skipped in [\d.]+s", summary), summary
