@@ -364,12 +364,12 @@ def test_edit_buy_with_json_number_decimal_returns_422(api):
 TOO_BIG = 99999999999
 
 
-def test_get_out_of_range_portfolio_returns_404(api):
+@pytest.mark.parametrize("portfolio_id", [TOO_BIG, 2**31, -(2**31) - 1])
+def test_get_out_of_range_portfolio_returns_404(api, portfolio_id):
     _portfolio(api)
 
-    assert api.as_user(ALICE).get(f"/api/v1/portfolios/{TOO_BIG}").status_code == 404
-    assert api.as_user(ALICE).get(f"/api/v1/portfolios/{-TOO_BIG}").status_code == 404
-    assert api.as_user(ALICE).get(_buys_url(TOO_BIG)).status_code == 404
+    assert api.as_user(ALICE).get(f"/api/v1/portfolios/{portfolio_id}").status_code == 404
+    assert api.as_user(ALICE).get(_buys_url(portfolio_id)).status_code == 404
 
 
 def test_out_of_range_buy_id_returns_404(api):
