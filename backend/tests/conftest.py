@@ -5,15 +5,11 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
-from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from alembic import command
-from app.core.auth import current_user_id
-from app.core.db import get_session
-from app.main import app
 
 BACKEND = Path(__file__).resolve().parents[1]
 ALICE = "user_alice"
@@ -74,6 +70,13 @@ def db_engine(database_url) -> Engine:
 @pytest.fixture
 def api(db_engine: Engine):
     """A test client on the migrated test database; `api.as_user(id)` picks the caller."""
+    # Imported here so DB-only test runs do not load the app or the TestClient.
+    from fastapi.testclient import TestClient
+
+    from app.core.auth import current_user_id
+    from app.core.db import get_session
+    from app.main import app
+
     caller = {"id": ALICE}
 
     def session():
@@ -84,7 +87,7 @@ def api(db_engine: Engine):
     app.dependency_overrides[current_user_id] = lambda: caller["id"]
     client = TestClient(app)
 
-    def as_user(user_id: str) -> TestClient:
+    def as_user(user_id: str):
         caller["id"] = user_id
         return client
 
