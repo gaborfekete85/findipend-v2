@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.models import Allocation, Buy, Sell
 from app.schemas.analytics import AssetPnlOut
-from app.schemas.buys import USD_STEP
 from app.services.allocations import realized_pnl
 from app.services.lots import SUM_PRECISION
 from app.services.prices import CoinGecko, Price
@@ -16,7 +15,8 @@ ZERO = Decimal(0)
 
 
 def asset_pnl(db: Session, portfolio_ids: list[int], prices: CoinGecko) -> list[AssetPnlOut]:
-    """Per-asset metrics over the given portfolios, by asset id; USD values exact to 8 places."""
+    """Per-asset metrics over the given portfolios, by asset id; USD values exact (README:
+    round only at display)."""
     buys = db.scalars(
         select(Buy).where(Buy.portfolio_id.in_(portfolio_ids)).order_by(Buy.asset_id, Buy.id)
     ).all()
@@ -44,10 +44,8 @@ def asset_pnl(db: Session, portfolio_ids: list[int], prices: CoinGecko) -> list[
             })
             row["quantity"] += unsold[buy.id]
             row["total_invested_usd"] += buy.total_usd
-            # Lot cost per unit × unsold quantity, as one division rounded to the USD step.
-            row["cost_basis_usd"] += (buy.total_usd * unsold[buy.id] / buy.quantity).quantize(
-                USD_STEP
-            )
+            # Lot cost per unit × unsold quantity, as one exact division.
+            row["cost_basis_usd"] += buy.total_usd * unsold[buy.id] / buy.quantity
         open_ids = [asset_id for asset_id, row in rows.items() if row["quantity"] > 0]
         quotes = prices.get_prices(open_ids) if open_ids else {}
         return [_with_price(row, quotes.get(row["asset_id"])) for row in rows.values()]
@@ -65,14 +63,12 @@ def _with_price(row: dict, quote: Price | None) -> AssetPnlOut:
     priced = {"price_usd": None, "price_as_of": None, "price_unavailable": True,
               "market_value_usd": None, "unrealized_pnl_usd": None, "total_pnl_usd": None}
     if quote is not None:
-        market_value = (quantity * quote.price).quantize(USD_STEP)
+        market_value = quantity * quote.price
         unrealized = market_value - cost_basis
         priced = {"price_usd": quote.price, "price_as_of": quote.as_of, "price_unavailable": False,
                   "market_value_usd": market_value, "unrealized_pnl_usd": unrealized,
                   "total_pnl_usd": row["realized_pnl_usd"] + unrealized}
-    return AssetPnlOut(
-        **row, average_buy_price_usd=(cost_basis / quantity).quantize(USD_STEP), **priced
-    )
+    return AssetPnlOut(**row, average_buy_price_usd=cost_basis / quantity, **priced)
 
 
 def totals(rows: list[AssetPnlOut]) -> dict:

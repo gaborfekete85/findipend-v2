@@ -116,13 +116,13 @@ def test_get_prices_mixes_last_known_and_none_when_transport_fails():
 )
 def test_get_prices_treats_non_finite_price_as_unavailable(bad):
     transport = FakeTransport(
-        prices={"bitcoin": {"usd": bad}, "ethereum": {"usd": Decimal("3000")}}
+        prices={"bitcoin": {"usd": bad}, "ethereum": {"usd": Decimal(3000)}}
     )
     client = CoinGecko(transport=transport, clock=FakeClock())
 
     assert client.get_prices(["bitcoin", "ethereum"]) == {
         "bitcoin": None,
-        "ethereum": Price(price=Decimal("3000"), as_of=datetime.fromtimestamp(T0, UTC)),
+        "ethereum": Price(price=Decimal(3000), as_of=datetime.fromtimestamp(T0, UTC)),
     }
 
 # -- GET /api/v1/assets -------------------------------------------------------
