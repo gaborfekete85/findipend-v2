@@ -36,6 +36,7 @@ function buy(id: number, overrides: Record<string, unknown> = {}) {
 /** Renders `entry` (default /portfolios/1). Each "METHOD path" answers from its queue; the last answer repeats. */
 function renderPage(routes: Record<string, (() => Response)[]>, entry = "/portfolios/1") {
   routes["GET /api/v1/portfolios/1"] = [json(200, { id: 1, name: "Long term" })];
+  routes["GET /api/v1/portfolios/1/sells"] ??= [json(200, [])];
   fetchMock.mockImplementation(async (url, init) => {
     const queue = routes[`${init?.method ?? "GET"} ${String(url).replace(API, "")}`];
     return (queue.length > 1 ? queue.shift()! : queue[0])();
@@ -172,4 +173,34 @@ test("the history table sits in a horizontal-scroll wrapper so a long quantity c
   const table = await screen.findByRole("table", { name: "Transaction history" });
 
   expect(table.parentElement!.classList.contains("overflow-x-auto")).toBe(true);
+});
+
+test("a sell row in the history expands to list its allocations with realized P&L", async () => {
+  const allocations = [
+    { id: 11, buy_id: 1, quantity: "0.500000000000000000", realized_pnl_usd: "4999.99" },
+    { id: 12, buy_id: 2, quantity: "0.3", realized_pnl_usd: "-120.505" },
+  ];
+  const sell = buy(7, { quantity: "0.8", total_usd: "48000.00000000", fee_usd: "48.00000000", trade_date: "2026-11-10", comment: "trim", allocations });
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [buy(1), buy(2, { trade_date: "2026-02-03" })])],
+    "GET /api/v1/portfolios/1/sells": [json(200, [sell])],
+  });
+  await vi.waitFor(async () => expect(await historyRows()).toEqual([
+    ["2026-01-02", "Buy", "BTC", "1.000000000000000000", "$30,000.00", "$30.00", ""],
+    ["2026-02-03", "Buy", "BTC", "1.000000000000000000", "$30,000.00", "$30.00", ""],
+    ["2026-11-10", "Sell", "BTC", "0.8", "$48,000.00", "$48.00", "trim"],
+  ]));
+
+  const toggle = screen.getByRole("button", { name: "Allocations of sell 7" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(toggle);
+
+  const list = screen.getByRole("table", { name: "Allocations of sell 7" });
+  const rows = within(list).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((c) => c.textContent));
+  expect(rows).toEqual([
+    ["Lot 1 (2026-01-02)", "0.500000000000000000", "$4,999.99"],
+    ["Lot 2 (2026-02-03)", "0.3", "-$120.51"],
+  ]);
+  fireEvent.click(toggle);
+  expect(screen.queryByRole("table", { name: "Allocations of sell 7" })).toBeNull();
 });
