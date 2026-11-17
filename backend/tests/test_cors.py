@@ -1,9 +1,9 @@
-import importlib
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-import app.main
+from app.main import create_app
 
 PREFLIGHT = {
     "Access-Control-Request-Method": "GET",
@@ -20,11 +20,9 @@ def client_with_origins(monkeypatch):
             monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
         else:
             monkeypatch.setenv("CORS_ALLOWED_ORIGINS", origins)
-        return TestClient(importlib.reload(app.main).app)
+        return TestClient(create_app())
 
-    yield build
-    monkeypatch.undo()
-    importlib.reload(app.main)
+    return build
 
 
 def preflight(client: TestClient, origin: str):
@@ -64,3 +62,12 @@ def test_simple_request_from_allowed_origin_gets_allow_origin(client_with_origin
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_no_test_reloads_app_main():
+    """Reloading app.main swaps the shared app other test files installed overrides on (#63)."""
+    tests_dir = Path(__file__).parent
+    needle = "importlib" + ".reload"
+    offenders = [p.name for p in tests_dir.glob("*.py") if needle in p.read_text()]
+
+    assert offenders == []
