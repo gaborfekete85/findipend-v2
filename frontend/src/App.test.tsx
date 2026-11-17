@@ -1,15 +1,46 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import App from "./App";
 
-test("the / route renders the Findipend heading", () => {
+const auth = vi.hoisted(() => ({ isLoaded: true, isSignedIn: false }));
+
+vi.mock("@clerk/react", () => ({
+  useAuth: () => auth,
+  SignIn: () => <div data-testid="clerk-sign-in" />,
+  UserButton: () => <button type="button" data-testid="clerk-user-button" />,
+}));
+
+afterEach(cleanup);
+
+function renderApp(signedIn: boolean) {
+  auth.isSignedIn = signedIn;
   render(
     <MemoryRouter initialEntries={["/"]}>
       <App />
     </MemoryRouter>,
   );
+}
+
+test("the / route renders the Findipend heading", () => {
+  renderApp(true);
 
   const heading = screen.getByRole("heading", { level: 1 });
   expect(heading.textContent).toBe("Findipend");
+});
+
+test("a signed-out visitor sees Clerk's sign-in and not the home heading", () => {
+  renderApp(false);
+
+  expect(screen.getByTestId("clerk-sign-in")).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Findipend" })).toBeNull();
+  expect(screen.queryByTestId("clerk-user-button")).toBeNull();
+});
+
+test("a signed-in user sees the home heading and a user button", () => {
+  renderApp(true);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Findipend");
+  expect(screen.getByTestId("clerk-user-button")).toBeTruthy();
+  expect(screen.queryByTestId("clerk-sign-in")).toBeNull();
 });
