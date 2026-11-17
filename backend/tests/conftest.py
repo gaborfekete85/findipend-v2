@@ -15,18 +15,17 @@ BACKEND = Path(__file__).resolve().parents[1]
 def alembic_config(url: str) -> Config:
     config = Config(str(BACKEND / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
-    config.attributes["configure_logger"] = False
     return config
 
 
 @pytest.fixture(scope="session")
 def postgres_url():
-    """A throwaway Postgres 17 server for the whole test session."""
+    """A throwaway Postgres 17 server; plain postgresql:// URL like .env.example."""
     if shutil.which("docker") is None:
         pytest.skip("docker CLI not installed")
     from testcontainers.community.postgres import PostgresContainer
 
-    with PostgresContainer("postgres:17") as postgres:
+    with PostgresContainer("postgres:17", driver=None) as postgres:
         yield postgres.get_connection_url()
 
 

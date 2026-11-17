@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic",
     "fastapi",
-    "psycopg2-binary",
+    "psycopg[binary]",
     "pydantic",
     "pyjwt[crypto]",
     "sqlalchemy",
