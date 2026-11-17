@@ -57,31 +57,33 @@ function PortfolioDetail({ id }: { id: string }) {
       </button>
       {error && <p role="alert" className="text-red-600">{error}</p>}
       {buys && (
-        <table aria-label="Transaction history" className="w-full text-left">
-          <thead>
-            <tr>
-              {["Date", "Type", "Asset", "Quantity", "Total", "Fee", "Comment", ""].map((h) => (
-                <th key={h}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {buys.map((buy) => (
-              <tr key={buy.id} className="border-t">
-                {[buy.trade_date, "Buy", buy.asset_symbol.toUpperCase(), buy.quantity, usd(buy.total_usd), usd(buy.fee_usd), buy.comment]
-                  .map((text, i) => <td key={i}>{text}</td>)}
-                <td className="space-x-2">
-                  <button type="button" aria-label={`Edit buy ${buy.id}`} onClick={() => setEditing(buy)}>
-                    Edit
-                  </button>
-                  <button type="button" aria-label={`Delete buy ${buy.id}`} onClick={() => remove(buy)} className="text-red-600">
-                    Delete
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table aria-label="Transaction history" className="w-full text-left">
+            <thead>
+              <tr>
+                {["Date", "Type", "Asset", "Quantity", "Total", "Fee", "Comment", ""].map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {buys.map((buy) => (
+                <tr key={buy.id} className="border-t">
+                  {[buy.trade_date, "Buy", buy.asset_symbol.toUpperCase(), buy.quantity, usd(buy.total_usd), usd(buy.fee_usd), buy.comment]
+                    .map((text, i) => <td key={i}>{text}</td>)}
+                  <td className="space-x-2">
+                    <button type="button" aria-label={`Edit buy ${buy.id}`} onClick={() => setEditing(buy)}>
+                      Edit
+                    </button>
+                    <button type="button" aria-label={`Delete buy ${buy.id}`} onClick={() => remove(buy)} className="text-red-600">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   );
