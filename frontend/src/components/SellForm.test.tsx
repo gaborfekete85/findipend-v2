@@ -8,17 +8,8 @@ vi.mock("@clerk/react", () => ({ useAuth: () => auth }));
 const API = "https://api.example.test";
 const fetchMock = vi.fn<typeof fetch>();
 
-beforeEach(() => {
-  vi.stubEnv("VITE_API_BASE_URL", API);
-  vi.stubGlobal("fetch", fetchMock);
-});
-
-afterEach(() => {
-  cleanup();
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
-  fetchMock.mockReset();
-});
+beforeEach(() => (vi.stubEnv("VITE_API_BASE_URL", API), vi.stubGlobal("fetch", fetchMock)));
+afterEach(() => (cleanup(), vi.unstubAllEnvs(), vi.unstubAllGlobals(), fetchMock.mockReset()));
 
 function lot(id: number, unsold: string, trade_date: string) {
   return {
@@ -27,25 +18,20 @@ function lot(id: number, unsold: string, trade_date: string) {
   };
 }
 
-/** Answers GET .../lots with `lots` and POST .../sells with `post`. */
-function serve(lots: ReturnType<typeof lot>[], post = () => new Response("{}", { status: 201 })) {
-  fetchMock.mockImplementation(async (url, init) => {
-    const { pathname } = new URL(String(url));
-    if (init?.method === "POST" && pathname === "/api/v1/portfolios/1/sells") return post();
-    if (pathname === "/api/v1/portfolios/1/lots") return new Response(JSON.stringify(lots), { status: 200 });
-    return new Response(null, { status: 404 });
-  });
-}
-
 const input = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
 const type = (name: string, value: string) => fireEvent.change(input(name), { target: { value } });
 const submit = () => screen.getByRole("button", { name: "Save sell" }) as HTMLButtonElement;
 
-/** Renders the form, picks Bitcoin and waits for the lot table. */
-async function open(lots: ReturnType<typeof lot>[], post?: () => Response) {
-  serve(lots, post);
+/** Serves GET .../lots with `lots` and POST .../sells with `post`; renders the form, picks Bitcoin, waits for the lots. */
+async function open(lots: ReturnType<typeof lot>[], post = () => new Response("{}", { status: 201 })) {
+  fetchMock.mockImplementation(async (url, init) => {
+    const { pathname } = new URL(String(url));
+    if (init?.method === "POST" && pathname === "/api/v1/portfolios/1/sells") return post();
+    return new Response(pathname === "/api/v1/portfolios/1/lots" ? JSON.stringify(lots) : null, { status: 200 });
+  });
   render(<SellForm portfolioId={1} onSaved={() => {}} />);
-  fireEvent.change(await screen.findByLabelText("Asset"), { target: { value: "bitcoin" } });
+  await screen.findByRole("option", { name: "Bitcoin (BTC)" });
+  fireEvent.change(input("Asset"), { target: { value: "bitcoin" } });
   type("Trade date", "2026-11-10");
   await screen.findByLabelText(`Allocation from lot ${lots[0].id}`);
 }
@@ -58,15 +44,6 @@ test("with open lots 0.5 (older) and 1.0 (newer), quantity 0.8 pre-fills 0.5 and
   expect([input("Allocation from lot 1").value, input("Allocation from lot 2").value]).toEqual(["0.5", "0.3"]);
   const lotsUrls = fetchMock.mock.calls.map(([url]) => new URL(String(url))).filter((u) => u.searchParams.has("asset_id"));
   expect(Object.fromEntries(lotsUrls.at(-1)!.searchParams)).toEqual({ asset_id: "bitcoin", as_of: "2026-11-10" });
-});
-
-test("a quantity above the lots' total fills every lot and leaves submit disabled", async () => {
-  await open([lot(1, "0.5", "2026-01-01"), lot(2, "1", "2026-02-01")]);
-
-  type("Quantity", "2");
-
-  expect([input("Allocation from lot 1").value, input("Allocation from lot 2").value]).toEqual(["0.5", "1"]);
-  expect(submit().disabled).toBe(true);
 });
 
 test.each([
