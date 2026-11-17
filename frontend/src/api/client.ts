@@ -28,9 +28,25 @@ export async function apiFetch<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    const detail = typeof body?.detail === "string" ? body.detail : response.statusText;
-    throw new ApiError(response.status, detail);
+    throw new ApiError(
+      response.status,
+      errorMessage(body?.detail) || `Request failed (${response.status})`,
+    );
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** FastAPI sends `detail` as a string, or for 422 a list of `{loc, msg}` items. */
+function errorMessage(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail)) return "";
+  return detail
+    .filter((item) => typeof item?.msg === "string")
+    .map((item) => {
+      const field = Array.isArray(item.loc) ? item.loc.at(-1) : undefined;
+      return field === undefined ? item.msg : `${field}: ${item.msg}`;
+    })
+    .join("; ");
 }

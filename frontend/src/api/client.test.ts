@@ -50,3 +50,67 @@ test.each([
   expect((error as ApiError).status).toBe(status);
   expect((error as ApiError).message).toBe(detail);
 });
+
+async function apiErrorFor(response: Response) {
+  fetchMock.mockResolvedValue(response);
+  const error = await apiFetch("/api/v1/portfolios", getToken).catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(ApiError);
+  return error as ApiError;
+}
+
+test("a 422 validation error names the field and the reason", async () => {
+  const error = await apiErrorFor(
+    jsonResponse(422, {
+      detail: [{ loc: ["body", "name"], msg: "String should have at least 1 character" }],
+    }),
+  );
+
+  expect(error.status).toBe(422);
+  expect(error.message).toBe("name: String should have at least 1 character");
+});
+
+test("a 422 with two validation items joins both messages with '; '", async () => {
+  const error = await apiErrorFor(
+    jsonResponse(422, {
+      detail: [
+        { loc: ["body", "name"], msg: "String should have at least 1 character" },
+        { loc: ["body", "lots", 0, "quantity"], msg: "Input should be greater than 0" },
+      ],
+    }),
+  );
+
+  expect(error.status).toBe(422);
+  expect(error.message).toBe(
+    "name: String should have at least 1 character; quantity: Input should be greater than 0",
+  );
+});
+
+test("a 409 with a string detail keeps that message", async () => {
+  const error = await apiErrorFor(jsonResponse(409, { detail: "Portfolio name already exists" }));
+
+  expect(error.status).toBe(409);
+  expect(error.message).toBe("Portfolio name already exists");
+});
+
+test.each([
+  ["a non-JSON body", new Response("<html>oops</html>", { status: 500, statusText: "Internal Server Error" })],
+  ["an empty body", new Response(null, { status: 500, statusText: "Internal Server Error" })],
+  ["JSON without detail", jsonResponse(500, { error: "boom" })],
+])("a 500 with %s gives 'Request failed (500)'", async (_label, response) => {
+  const error = await apiErrorFor(response);
+
+  expect(error.status).toBe(500);
+  expect(error.message).toBe("Request failed (500)");
+});
+
+test("a 204 response resolves to undefined without throwing", async () => {
+  fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+  await expect(apiFetch("/api/v1/portfolios/1", getToken, { method: "DELETE" })).resolves.toBeUndefined();
+});
+
+test("a 200 with an empty body resolves to undefined without throwing", async () => {
+  fetchMock.mockResolvedValue(new Response("", { status: 200 }));
+
+  await expect(apiFetch("/api/v1/portfolios/1", getToken)).resolves.toBeUndefined();
+});
