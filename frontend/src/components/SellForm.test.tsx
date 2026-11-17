@@ -98,13 +98,15 @@ test("submitting posts string quantities with allocations [{buy_id, quantity}] f
 
 // Each Total runs with the derived fee and with Fee typed by hand, so the Total check cannot lean on the Fee check.
 test.each(
-  [
-    ["", false],
-    ["abc", false],
-    ["-1", false],
-    ["0", true],
-    ["100.5", true],
-  ].flatMap(([total, enabled]) => [null, "1"].map((fee) => [total, fee, enabled] as const)),
+  (
+    [
+      ["", false],
+      ["abc", false],
+      ["-1", false],
+      ["0", true],
+      ["100.5", true],
+    ] as const
+  ).flatMap(([total, enabled]) => [null, "1"].map((fee) => [total, fee, enabled] as const)),
 )("with allocations summing to the quantity, Total %j (Fee %j): submit enabled is %s", async (total, fee, enabled) => {
   await open([lot(1, "0.5", "2026-01-01"), lot(2, "1", "2026-02-01")]);
   type("Quantity", "0.8");
