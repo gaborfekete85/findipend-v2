@@ -1,0 +1,22 @@
+{
+  "verify_commands": [
+    "test ! -d backend || (cd backend && uv run ruff check . && uv run pytest)",
+    "test ! -d frontend || (cd frontend && bun install --frozen-lockfile && bun run lint && bunx tsc --noEmit && bun run test)"
+  ],
+  "merge_policy": {
+    "default": "auto",
+    "auto_max_lines": 400,
+    "always_human": {
+      "labels": ["money", "auth", "schema"],
+      "paths": [
+        ".g-stack/*",
+        "AGENTS.md",
+        "backend/app/core/*",
+        "backend/app/services/*",
+        "backend/app/models/*",
+        "backend/alembic/*",
+        "docker-compose.yml"
+      ]
+    }
+  }
+}
