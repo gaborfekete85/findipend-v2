@@ -164,3 +164,64 @@ test("renaming sends a PATCH with the new name and the list shows it", async () 
     auth: "Bearer mock-token",
   });
 });
+
+test("renaming a portfolio while its delete dialog is open makes the dialog expect the new name", async () => {
+  mockApi(
+    [portfolio(1, "Long term"), portfolio(2, "Trading")],
+    jsonResponse(200, portfolio(2, "Swing")),
+    new Response(null, { status: 204 }),
+  );
+  render(<PortfoliosPage />);
+  await screen.findByText("Trading");
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete Trading" }));
+  fireEvent.click(screen.getByRole("button", { name: "Rename Trading" }));
+  fireEvent.change(screen.getByLabelText("New name for Trading"), { target: { value: "Swing" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await listedNames()).toEqual(["Long term", "Swing"]);
+
+  const dialog = await screen.findByRole("dialog", { name: "Delete Swing" });
+  const confirm = within(dialog).getByRole("button", { name: "Delete" }) as HTMLButtonElement;
+  const input = within(dialog).getByLabelText("Type Swing to confirm");
+
+  for (const wrong of ["Trading", "", "swing", "Long term"]) {
+    fireEvent.change(input, { target: { value: wrong } });
+    expect(confirm.disabled).toBe(true);
+  }
+  fireEvent.change(input, { target: { value: "Swing" } });
+  expect(confirm.disabled).toBe(false);
+  fireEvent.click(confirm);
+
+  await vi.waitFor(() => expect(screen.queryByText("Swing")).toBeNull());
+  expect(await listedNames()).toEqual(["Long term"]);
+  expect(call(2)).toEqual({
+    url: `${API}/api/v1/portfolios/2`,
+    method: "DELETE",
+    body: { confirm_name: "Swing" },
+    contentType: "application/json",
+    auth: "Bearer mock-token",
+  });
+});
+
+test("renaming a different portfolio leaves the open delete dialog's expected name alone", async () => {
+  mockApi(
+    [portfolio(1, "Long term"), portfolio(2, "Trading")],
+    jsonResponse(200, portfolio(1, "Retirement")),
+  );
+  render(<PortfoliosPage />);
+  await screen.findByText("Trading");
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete Trading" }));
+  fireEvent.click(screen.getByRole("button", { name: "Rename Long term" }));
+  fireEvent.change(screen.getByLabelText("New name for Long term"), { target: { value: "Retirement" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await listedNames()).toEqual(["Retirement", "Trading"]);
+
+  const dialog = screen.getByRole("dialog", { name: "Delete Trading" });
+  const confirm = within(dialog).getByRole("button", { name: "Delete" }) as HTMLButtonElement;
+  const input = within(dialog).getByLabelText("Type Trading to confirm");
+  fireEvent.change(input, { target: { value: "Retirement" } });
+  expect(confirm.disabled).toBe(true);
+  fireEvent.change(input, { target: { value: "Trading" } });
+  expect(confirm.disabled).toBe(false);
+});
