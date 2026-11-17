@@ -40,6 +40,10 @@ def test_env_example_lists_required_keys_with_placeholders():
     assert values["CLERK_SECRET_KEY"] == "sk_test_placeholder"
 
 
+def test_env_example_lists_cors_allowed_origins_for_the_local_frontend():
+    assert _env_example()["CORS_ALLOWED_ORIGINS"] == "http://localhost:3000"
+
+
 def test_gitignore_excludes_env_venv_and_pycache():
     path = REPO_ROOT / ".gitignore"
     assert path.is_file(), f"{path} is missing"
