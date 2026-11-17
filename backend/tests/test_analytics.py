@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from app.api.assets import coingecko
@@ -92,7 +94,8 @@ def test_portfolio_summary_uses_unsold_part_of_a_partly_sold_lot(api, prices):
         "partial": False,
     }
     [btc] = _get(api, f"/api/v1/portfolios/{pid}/positions")["open"]
-    assert (btc["quantity"], btc["average_buy_price_usd"]) == ("1.5", "36666.66666667")
+    # Exact to SUM_PRECISION (60) significant digits; rounding is left to display (#44).
+    assert (btc["quantity"], btc["average_buy_price_usd"]) == ("1.5", "36666." + "6" * 54 + "7")
 
 
 # AC2: BTC is open with average buy price 50000; a fully sold asset is closed with its realized P&L
@@ -202,3 +205,67 @@ def test_analytics_of_another_users_portfolio_return_404(api, prices, path):
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Portfolio not found"}
+
+
+# #44 AC1: a tiny remaining holding keeps its exact cost basis and average buy price
+
+
+def test_tiny_remaining_holding_keeps_exact_cost_basis_and_average(api, prices):
+    prices["bitcoin"] = "60000"
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "30000", "2026-01-01")
+    _sell(api, pid, lot, "0.999999999999999999", "30000")
+
+    [btc] = _get(api, f"/api/v1/portfolios/{pid}/positions")["open"]
+
+    assert (btc["quantity"], btc["cost_basis_usd"], btc["average_buy_price_usd"]) == (
+        "0.000000000000000001", "0.00000000000003", "30000",
+    )
+    assert (btc["market_value_usd"], btc["unrealized_pnl_usd"]) == (
+        "0.00000000000006", "0.00000000000003",
+    )
+
+
+# #44 AC2: 3 units bought for $1, 1 sold: the average buy price does not drift
+
+
+def test_average_buy_price_of_a_third_does_not_drift(api, prices):
+    prices["bitcoin"] = "1"
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "1", "2026-01-01", quantity="3")
+    _sell(api, pid, lot, "1", "1")
+
+    [btc] = _get(api, f"/api/v1/portfolios/{pid}/positions")["open"]
+
+    average = btc["average_buy_price_usd"]
+    assert average.startswith("0.")
+    assert average[2:20] == "3" * 18
+
+
+# #44 AC3: a non-finite price is treated as unavailable
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("nan"), Decimal("Infinity"), "NaN"])
+def test_non_finite_price_is_unavailable(api, prices, bad):
+    prices.update(bitcoin=bad, ethereum="3000")
+    pid = _portfolio(api)
+    _readme_example(api, pid)
+    _buy(api, pid, "2000", "2026-01-01", asset=ETH)
+
+    btc, eth = _get(api, f"/api/v1/portfolios/{pid}/positions")["open"]
+
+    assert {k: btc[k] for k in (
+        "asset_id", "price_usd", "price_unavailable", "market_value_usd", "unrealized_pnl_usd",
+    )} == {
+        "asset_id": "bitcoin", "price_usd": None, "price_unavailable": True,
+        "market_value_usd": None, "unrealized_pnl_usd": None,
+    }
+    assert (eth["price_unavailable"], eth["unrealized_pnl_usd"]) == (False, "1000")
+    assert _totals(_get(api, f"/api/v1/portfolios/{pid}/summary")) == {
+        "total_invested_usd": "82000", "cost_basis_usd": "52000", "realized_pnl_usd": "30000",
+        "market_value_usd": "3000", "unrealized_pnl_usd": "1000", "total_pnl_usd": "31000",
+        "partial": True,
+    }
+    overview = _get(api, "/api/v1/summary")
+    assert overview["partial"] is True
+    assert [a["price_unavailable"] for a in overview["assets"]] == [True, False]
