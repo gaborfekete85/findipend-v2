@@ -299,3 +299,19 @@ test.each(["Open positions", "Closed positions"])("every header and cell of the 
   expect(headers.map((th) => th.classList.contains("px-2"))).toEqual(Array(8).fill(true));
   expect([...table.querySelectorAll("td")].map((td) => td.classList.contains("px-2"))).toEqual(Array(8).fill(true));
 });
+
+test("every header and cell of the Transaction history table has horizontal padding so columns do not touch on a phone", async () => {
+  const sell = buy(7, { quantity: "0.5", trade_date: "2026-11-10", allocations: [] });
+  renderPage({
+    "GET /api/v1/portfolios/1/buys": [json(200, [buy(1)])],
+    "GET /api/v1/portfolios/1/sells": [json(200, [sell])],
+  });
+  await vi.waitFor(async () => expect((await historyRows()).length).toBe(2));
+
+  const table = screen.getByRole("table", { name: "Transaction history" });
+  const headers = [...table.querySelectorAll(":scope > thead > tr > th")];
+  expect(headers.map((th) => th.textContent)).toEqual(["Date", "Type", "Asset", "Quantity", "Total", "Fee", "Comment", ""]);
+  expect(headers.map((th) => th.classList.contains("px-2"))).toEqual(Array(8).fill(true));
+  const cells = [...table.querySelectorAll(":scope > tbody > tr > td")];
+  expect(cells.map((td) => td.classList.contains("px-2"))).toEqual(Array(16).fill(true));
+});
