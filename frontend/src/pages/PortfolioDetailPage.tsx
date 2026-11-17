@@ -89,7 +89,7 @@ function PortfolioDetail({ id }: { id: string }) {
             <thead>
               <tr>
                 {["Date", "Type", "Asset", "Quantity", "Total", "Fee", "Comment", ""].map((h) => (
-                  <th key={h}>{h}</th>
+                  <th key={h} className="px-2">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -98,8 +98,8 @@ function PortfolioDetail({ id }: { id: string }) {
                 <Fragment key={`${kind}-${tx.id}`}>
                   <tr className="border-t">
                     {[tx.trade_date, kind === "buy" ? "Buy" : "Sell", tx.asset_symbol.toUpperCase(), tx.quantity, usd(tx.total_usd), usd(tx.fee_usd), tx.comment]
-                      .map((text, i) => <td key={i}>{text}</td>)}
-                    <td className="space-x-2">
+                      .map((text, i) => <td key={i} className="px-2">{text}</td>)}
+                    <td className="space-x-2 px-2">
                       {kind === "sell" && (
                         <button type="button" aria-label={`Allocations of sell ${tx.id}`} aria-expanded={expanded === tx.id}
                           onClick={() => setExpanded(expanded === tx.id ? null : tx.id)}>Lots</button>
