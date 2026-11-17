@@ -269,3 +269,21 @@ def test_non_finite_price_is_unavailable(api, prices, bad):
     overview = _get(api, "/api/v1/summary")
     assert overview["partial"] is True
     assert [a["price_unavailable"] for a in overview["assets"]] == [True, False]
+
+
+# #48 AC1: 3 units bought for $1, 1 sold for $1 at price $1: total P&L is exactly 2
+# #48 AC3: the README example still holds (test_portfolio_summary_matches_readme_example)
+
+
+def test_total_pnl_of_a_third_sold_adds_up_exactly(api, prices):
+    prices["bitcoin"] = "1"
+    pid = _portfolio(api)
+    lot = _buy(api, pid, "1", "2026-01-01", quantity="3")
+    _sell(api, pid, lot, "1", "1")
+
+    summary = _get(api, f"/api/v1/portfolios/{pid}/summary")
+    [btc] = _get(api, f"/api/v1/portfolios/{pid}/positions")["open"]
+
+    assert Decimal(summary["total_pnl_usd"]) == Decimal(2)
+    assert Decimal(btc["total_pnl_usd"]) == Decimal(2)
+    assert Decimal(_get(api, "/api/v1/summary")["total_pnl_usd"]) == Decimal(2)
