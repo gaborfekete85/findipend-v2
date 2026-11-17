@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Findipend crypto portfolio tracker API"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic",
     "fastapi",
+    "psycopg[binary]",
     "pydantic",
     "pyjwt[crypto]",
     "sqlalchemy",
@@ -16,6 +18,7 @@ dev = [
     "httpx",
     "pytest",
     "ruff",
+    "testcontainers",
 ]
 
 [tool.ruff]
